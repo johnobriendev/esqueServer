@@ -23,7 +23,7 @@ export const createTask: AuthenticatedController = async (
   try {
     const user = await getAuthenticatedUser(req);
     const { projectId } = req.params;
-    const { id, title, description, status = 'not started', priority = 'none', position, customFields } = req.body;
+    const { id, title, description, status = 'not started', priority = 'low', position, customFields } = req.body;
     
     // Check if user can write to this project
     const access = await validateProjectAccess(user.id, projectId, 'write');

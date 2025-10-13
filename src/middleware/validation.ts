@@ -44,7 +44,7 @@ export const validateTaskData = (req: Request, res: Response, next: NextFunction
     return validationError(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
   }
   
-  const validPriorities = ['none', 'low', 'medium', 'high', 'urgent'];
+  const validPriorities = ['low', 'medium', 'high', 'urgent'];
   if (priority && !validPriorities.includes(priority)) {
     return validationError(res, `Invalid priority. Must be one of: ${validPriorities.join(', ')}`);
   }
@@ -81,7 +81,7 @@ export const validateBulkUpdateData = (req: Request, res: Response, next: NextFu
     return validationError(res, 'Invalid status');
   }
   
-  if (priority && !['none', 'low', 'medium', 'high', 'urgent'].includes(priority)) {
+  if (priority && !['low', 'medium', 'high', 'urgent'].includes(priority)) {
     return validationError(res, 'Invalid priority');
   }
   

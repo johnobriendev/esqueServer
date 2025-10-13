@@ -180,12 +180,12 @@ describe('Validation Middleware Unit Tests', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid priority. Must be one of: none, low, medium, high, urgent'
+        error: 'Invalid priority. Must be one of: low, medium, high, urgent'
       });
     });
 
     it('should pass with valid priority values', () => {
-      const validPriorities = ['none', 'low', 'medium', 'high', 'urgent'];
+      const validPriorities = ['low', 'medium', 'high', 'urgent'];
 
       validPriorities.forEach(priority => {
         jest.clearAllMocks();
