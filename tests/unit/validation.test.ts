@@ -5,6 +5,7 @@ import {
   validateTaskData,
   validateBulkUpdateData,
   validateReorderData,
+  validateTaskStatusUpdate,
   validateCommentData,
 } from '../../src/middleware/validation';
 
@@ -316,6 +317,36 @@ describe('Validation Middleware Unit Tests', () => {
       expect(mockNext).toHaveBeenCalled();
     });
 
+    it('should pass with valid reorder data for status grouping', () => {
+      const req = mockRequest({
+        groupBy: 'status',
+        tasks: [
+          { id: 'task1', statusPosition: 0 },
+          { id: 'task2', statusPosition: 1 },
+        ],
+      });
+      const res = mockResponse();
+
+      validateReorderData(req as Request, res as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('should fail with invalid groupBy value', () => {
+      const req = mockRequest({
+        groupBy: 'invalid',
+        tasks: [{ id: 'task1', position: 0 }],
+      });
+      const res = mockResponse();
+
+      validateReorderData(req as Request, res as Response, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'groupBy must be either "priority" or "status"'
+      });
+    });
+
     it('should fail when tasks is not an array', () => {
       const req = mockRequest({ tasks: 'not-array' });
       const res = mockResponse();
@@ -354,6 +385,102 @@ describe('Validation Middleware Unit Tests', () => {
       validateReorderData(req as Request, res as Response, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should fail when task statusPosition is negative for status grouping', () => {
+      const req = mockRequest({
+        groupBy: 'status',
+        tasks: [{ id: 'task1', statusPosition: -1 }],
+      });
+      const res = mockResponse();
+
+      validateReorderData(req as Request, res as Response, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Each task must have a valid statusPosition when groupBy is "status"'
+      });
+    });
+  });
+
+  describe('validateTaskStatusUpdate', () => {
+    it('should pass with valid status update data', () => {
+      const req = mockRequest({
+        status: 'in progress',
+        destinationIndex: 2,
+        version: 5,
+      });
+      const res = mockResponse();
+
+      validateTaskStatusUpdate(req as Request, res as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('should pass with valid status and no destinationIndex', () => {
+      const req = mockRequest({
+        status: 'completed',
+      });
+      const res = mockResponse();
+
+      validateTaskStatusUpdate(req as Request, res as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it('should fail when status is missing', () => {
+      const req = mockRequest({
+        destinationIndex: 2,
+      });
+      const res = mockResponse();
+
+      validateTaskStatusUpdate(req as Request, res as Response, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should fail with invalid status', () => {
+      const req = mockRequest({
+        status: 'invalid-status',
+      });
+      const res = mockResponse();
+
+      validateTaskStatusUpdate(req as Request, res as Response, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Invalid status. Must be one of: not started, in progress, completed'
+      });
+    });
+
+    it('should fail when destinationIndex is negative', () => {
+      const req = mockRequest({
+        status: 'completed',
+        destinationIndex: -1,
+      });
+      const res = mockResponse();
+
+      validateTaskStatusUpdate(req as Request, res as Response, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'destinationIndex must be a positive number'
+      });
+    });
+
+    it('should fail when version is not a number', () => {
+      const req = mockRequest({
+        status: 'completed',
+        version: 'not-a-number',
+      });
+      const res = mockResponse();
+
+      validateTaskStatusUpdate(req as Request, res as Response, mockNext);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'version must be a number'
+      });
     });
   });
 

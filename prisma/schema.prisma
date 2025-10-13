@@ -38,23 +38,25 @@ model Project {
 }
 
 model Task {
-  id           String        @id @default(uuid())
-  title        String
-  description  String?
-  status       String        // 'not started', 'in progress', 'completed'
-  priority     String        // 'low', 'medium', 'high', 'urgent'
-  position     Int
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  projectId    String
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  customFields Json?         // For storing Record<string, string | number | boolean>
-  version      Int           @default(1)     // Starts at 1 for all existing tasks
-  updatedBy    String?       // Nullable - existing tasks will be null
-  comments     TaskComment[]
+  id             String        @id @default(uuid())
+  title          String
+  description    String?
+  status         String        // 'not started', 'in progress', 'completed'
+  priority       String        // 'low', 'medium', 'high', 'urgent'
+  position       Int
+  statusPosition Int           @default(0) // Position within status group for status-based Kanban view
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  projectId      String
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  customFields   Json?         // For storing Record<string, string | number | boolean>
+  version        Int           @default(1)     // Starts at 1 for all existing tasks
+  updatedBy      String?       // Nullable - existing tasks will be null
+  comments       TaskComment[]
 
   @@index([projectId])
-  @@index([priority, position]) // For efficient sorting in Kanban view
+  @@index([priority, position])        // For efficient sorting in priority-based Kanban view
+  @@index([status, statusPosition])    // For efficient sorting in status-based Kanban view
 }
 
 // Team members for each project

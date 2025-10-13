@@ -89,10 +89,14 @@ export const validateBulkUpdateData = (req: Request, res: Response, next: NextFu
 };
 
 export const validateReorderData = (req: Request, res: Response, next: NextFunction) => {
-  const { tasks } = req.body;
+  const { tasks, groupBy } = req.body;
 
   if (!Array.isArray(tasks) || tasks.length === 0) {
     return validationError(res, 'Tasks array is required and must not be empty');
+  }
+
+  if (groupBy && !['priority', 'status'].includes(groupBy)) {
+    return validationError(res, 'groupBy must be either "priority" or "status"');
   }
 
   for (const task of tasks) {
@@ -100,9 +104,35 @@ export const validateReorderData = (req: Request, res: Response, next: NextFunct
       return validationError(res, 'Each task must have a valid id');
     }
 
-    if (typeof task.position !== 'number' || task.position < 0) {
-      return validationError(res, 'Each task must have a valid position');
+    // Check for appropriate position field based on groupBy
+    if (groupBy === 'status') {
+      if (typeof task.statusPosition !== 'number' || task.statusPosition < 0) {
+        return validationError(res, 'Each task must have a valid statusPosition when groupBy is "status"');
+      }
+    } else {
+      if (typeof task.position !== 'number' || task.position < 0) {
+        return validationError(res, 'Each task must have a valid position');
+      }
     }
+  }
+
+  next();
+};
+
+export const validateTaskStatusUpdate = (req: Request, res: Response, next: NextFunction) => {
+  const { status, destinationIndex, version } = req.body;
+
+  const validStatuses = ['not started', 'in progress', 'completed'];
+  if (!status || !validStatuses.includes(status)) {
+    return validationError(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+  }
+
+  if (destinationIndex !== undefined && (typeof destinationIndex !== 'number' || destinationIndex < 0)) {
+    return validationError(res, 'destinationIndex must be a positive number');
+  }
+
+  if (version !== undefined && typeof version !== 'number') {
+    return validationError(res, 'version must be a number');
   }
 
   next();
