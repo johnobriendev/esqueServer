@@ -2,8 +2,8 @@
 import { Router } from 'express';
 import userRoutes from './userRoutes';
 import projectRoutes from './projectRoutes';
-import taskRoutes from './taskRoutes';
-import teamRoutes from './teamRoutes'
+import teamRoutes from './teamRoutes';
+import crossProjectTaskRoutes from './crossProjectTaskRoutes';
 
 
 const router = Router();
@@ -22,8 +22,10 @@ router.use('/projects', projectRoutes);
 // Team collaboration routes
 router.use('/team', teamRoutes);
 
-// Task routes
-//task routes are now under projects
-//router.use('/tasks', taskRoutes);
+// Cross-project task routes
+router.use('/tasks', crossProjectTaskRoutes);
+
+// Project-scoped task routes are under /projects/:projectId/tasks
+// See projectRoutes.ts for nested task routes
 
 export default router;

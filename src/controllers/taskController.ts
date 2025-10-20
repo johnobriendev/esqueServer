@@ -571,3 +571,54 @@ export const updateTaskStatus: AuthenticatedController = async (
     next(error);
   }
 };
+
+// Cross-project task queries
+export const getUrgentTasks: AuthenticatedController = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const user = await getAuthenticatedUser(req);
+
+    // Query all urgent tasks from projects the user has access to
+    const urgentTasks = await prisma.task.findMany({
+      where: {
+        priority: 'urgent',
+        project: {
+          OR: [
+            { userId: user.id }, // Projects user owns
+            {
+              collaborators: {
+                some: {
+                  userId: user.id
+                }
+              }
+            } // Projects user collaborates on
+          ]
+        }
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true
+          }
+        }
+      },
+      orderBy: [
+        { updatedAt: 'desc' }
+      ]
+    });
+
+    res.status(200).json(urgentTasks);
+  } catch (error) {
+    const err = error as any;
+    if (err.message === 'Unauthorized') {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    next(error);
+  }
+};
