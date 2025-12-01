@@ -35,37 +35,50 @@ export async function getUserProjectAccess(
 }
 
 // Get all projects user has access to (owned + collaborated)
-export async function getUserAccessibleProjects(userId: string) {
+export async function getUserAccessibleProjects(userId: string, includeArchived: boolean = false) {
   const [ownedProjects, collaboratedProjects] = await Promise.all([
     // Projects owned by user
     prisma.project.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(includeArchived ? {} : { isArchived: false })
+      },
       orderBy: { updatedAt: 'desc' }
     }),
-    
+
     // Projects user collaborates on
     prisma.project.findMany({
       where: {
         collaborators: {
-          some: { userId }
-        }
+          some: {
+            userId,
+            ...(includeArchived ? {} : { isArchived: false })
+          }
+        },
+        ...(includeArchived ? {} : { isArchived: false })
       },
       include: {
         collaborators: {
           where: { userId },
-          select: { role: true }
+          select: { role: true, isArchived: true }
         }
       },
       orderBy: { updatedAt: 'desc' }
     })
   ]);
-  
+
   return {
-    owned: ownedProjects.map((p: any) => ({ ...p, userRole: 'owner' as const, canWrite: true })),
+    owned: ownedProjects.map((p: any) => ({
+      ...p,
+      userRole: 'owner' as const,
+      canWrite: true,
+      isUserArchived: p.isArchived
+    })),
     collaborated: collaboratedProjects.map((p: any) => ({
       ...p,
       userRole: p.collaborators[0].role as ProjectRole,
-      canWrite: p.collaborators[0].role === 'editor'
+      canWrite: p.collaborators[0].role === 'editor',
+      isUserArchived: p.collaborators[0].isArchived
     }))
   };
 }

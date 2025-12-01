@@ -9,7 +9,8 @@ import {
   declineInvitation,
   getProjectCollaborators,
   removeTeamMember,
-  updateMemberRole
+  updateMemberRole,
+  leaveProject
 } from '../controllers/teamController';
 
 const router = Router();
@@ -33,5 +34,7 @@ router.get('/projects/:id/collaborators', getProjectCollaborators);
 router.delete('/projects/:id/collaborators/:userId', removeTeamMember);
 
 router.put('/projects/:id/collaborators/:userId/role', updateMemberRole);
+
+router.delete('/projects/:id/leave', leaveProject);
 
 export default router;

@@ -371,30 +371,30 @@ export const updateMemberRole: AuthenticatedController = async (
     const user = await getAuthenticatedUser(req);
     const { id: projectId, userId: memberUserId } = req.params;
     const { role } = req.body;
-    
+
     if (!['editor', 'viewer'].includes(role)) {
       res.status(400).json({ error: 'Role must be editor or viewer' });
       return;
     }
-    
+
     // Only owners can update roles
     const access = await validateProjectAccess(user.id, projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     if (access.role !== 'owner') {
       res.status(403).json({ error: 'Only project owners can update member roles' });
       return;
     }
-    
+
     // Can't update owner role
     if (memberUserId === user.id) {
       res.status(400).json({ error: 'Cannot change owner role' });
       return;
     }
-    
+
     const collaborator = await prisma.projectCollaborator.update({
       where: {
         projectId_userId: {
@@ -407,7 +407,7 @@ export const updateMemberRole: AuthenticatedController = async (
         user: { select: { id: true, email: true, name: true } }
       }
     });
-    
+
     res.status(200).json({
       id: collaborator.user.id,
       email: collaborator.user.email,
@@ -419,6 +419,56 @@ export const updateMemberRole: AuthenticatedController = async (
     const err = error as any;
     if (err.code === 'P2025') {
       res.status(404).json({ error: 'Team member not found' });
+      return;
+    }
+    next(error);
+  }
+};
+
+// 8. DELETE /projects/:id/leave - Leave project
+export const leaveProject: AuthenticatedController = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    const { id: projectId } = req.params;
+
+    const project = await prisma.project.findFirst({
+      where: { id: projectId }
+    });
+
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    if (project.userId === user.id) {
+      res.status(403).json({ error: 'Project owners cannot leave. Transfer ownership or delete the project.' });
+      return;
+    }
+
+    const collaborator = await prisma.projectCollaborator.findFirst({
+      where: { projectId, userId: user.id }
+    });
+
+    if (!collaborator) {
+      res.status(404).json({ error: 'You are not a member of this project' });
+      return;
+    }
+
+    await prisma.projectCollaborator.delete({
+      where: {
+        projectId_userId: { projectId, userId: user.id }
+      }
+    });
+
+    res.status(200).json({ message: 'Successfully left project' });
+  } catch (error) {
+    const err = error as any;
+    if (err.message === 'Unauthorized') {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
     next(error);
