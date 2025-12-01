@@ -58,7 +58,7 @@ describe('Team API Integration Tests', () => {
       const invitee = await createTestUser({ email: 'invitee@example.com' });
       const project = await createTestProject(owner.id);
 
-      await prisma.projectInvitation.create({
+      await prisma().projectInvitation.create({
         data: {
           receiverEmail: invitee.email,
           senderUserId: owner.id,
@@ -87,7 +87,7 @@ describe('Team API Integration Tests', () => {
       const invitee = await createTestUser({ email: 'invitee@example.com' });
       const project = await createTestProject(owner.id);
 
-      const invitation = await prisma.projectInvitation.create({
+      const invitation = await prisma().projectInvitation.create({
         data: {
           receiverEmail: invitee.email,
           senderUserId: owner.id,
@@ -110,7 +110,7 @@ describe('Team API Integration Tests', () => {
       expect(response.body.message).toBe('Invitation accepted successfully');
       expect(response.body.role).toBe('editor');
 
-      const collaborator = await prisma.projectCollaborator.findFirst({
+      const collaborator = await prisma().projectCollaborator.findFirst({
         where: { projectId: project.id, userId: invitee.id },
       });
       expect(collaborator).not.toBeNull();
@@ -166,7 +166,7 @@ describe('Team API Integration Tests', () => {
         .delete(`/api/team/projects/${project.id}/collaborators/${editor.id}`)
         .expect(200);
 
-      const collaborator = await prisma.projectCollaborator.findFirst({
+      const collaborator = await prisma().projectCollaborator.findFirst({
         where: { projectId: project.id, userId: editor.id },
       });
       expect(collaborator).toBeNull();
@@ -210,7 +210,7 @@ describe('Team API Integration Tests', () => {
 
       expect(response.body.role).toBe('viewer');
 
-      const collaborator = await prisma.projectCollaborator.findFirst({
+      const collaborator = await prisma().projectCollaborator.findFirst({
         where: { projectId: project.id, userId: editor.id },
       });
       expect(collaborator?.role).toBe('viewer');

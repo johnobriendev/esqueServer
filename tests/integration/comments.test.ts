@@ -28,7 +28,7 @@ describe('Comment API Integration Tests', () => {
       const task = await createTestTask(project.id);
 
       // Create a comment
-      await prisma.taskComment.create({
+      await prisma().taskComment.create({
         data: {
           content: 'Test comment',
           taskId: task.id,
@@ -146,7 +146,7 @@ describe('Comment API Integration Tests', () => {
       const owner = await createTestUser();
       const project = await createTestProject(owner.id);
       const task = await createTestTask(project.id);
-      const comment = await prisma.taskComment.create({
+      const comment = await prisma().taskComment.create({
         data: {
           content: 'Original content',
           taskId: task.id,
@@ -173,7 +173,7 @@ describe('Comment API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
-      const comment = await prisma.taskComment.create({
+      const comment = await prisma().taskComment.create({
         data: {
           content: 'Original content',
           taskId: task.id,
@@ -198,7 +198,7 @@ describe('Comment API Integration Tests', () => {
       const owner = await createTestUser();
       const project = await createTestProject(owner.id);
       const task = await createTestTask(project.id);
-      const comment = await prisma.taskComment.create({
+      const comment = await prisma().taskComment.create({
         data: {
           content: 'Test content',
           taskId: task.id,
@@ -215,7 +215,7 @@ describe('Comment API Integration Tests', () => {
         .delete(`/api/comments/${comment.id}`)
         .expect(204);
 
-      const deleted = await prisma.taskComment.findUnique({
+      const deleted = await prisma().taskComment.findUnique({
         where: { id: comment.id },
       });
       expect(deleted).toBeNull();
@@ -229,7 +229,7 @@ describe('Comment API Integration Tests', () => {
       const task = await createTestTask(project.id);
 
       // Editor creates comment
-      const comment = await prisma.taskComment.create({
+      const comment = await prisma().taskComment.create({
         data: {
           content: 'Editor comment',
           taskId: task.id,
@@ -257,7 +257,7 @@ describe('Comment API Integration Tests', () => {
       await createCollaborator(project.id, editor2.id, 'editor');
       const task = await createTestTask(project.id);
 
-      const comment = await prisma.taskComment.create({
+      const comment = await prisma().taskComment.create({
         data: {
           content: 'Editor 1 comment',
           taskId: task.id,

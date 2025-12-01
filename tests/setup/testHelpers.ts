@@ -7,7 +7,7 @@ import { prisma } from './testDb';
  */
 export async function createTestUser(overrides?: Partial<User>): Promise<User> {
   const randomId = Math.random().toString(36).substring(7);
-  return prisma.user.create({
+  return prisma().user.create({
     data: {
       email: overrides?.email || `test-${randomId}@example.com`,
       name: overrides?.name || `Test User ${randomId}`,
@@ -23,7 +23,7 @@ export async function createTestProject(
   userId: string,
   overrides?: Partial<Project>
 ): Promise<Project> {
-  return prisma.project.create({
+  return prisma().project.create({
     data: {
       name: overrides?.name || 'Test Project',
       description: overrides?.description || 'Test Description',
@@ -39,7 +39,7 @@ export async function createTestTask(
   projectId: string,
   overrides?: Partial<Task>
 ): Promise<Task> {
-  return prisma.task.create({
+  return prisma().task.create({
     data: {
       title: overrides?.title || 'Test Task',
       description: overrides?.description || 'Test Description',
@@ -59,7 +59,7 @@ export async function createCollaborator(
   userId: string,
   role: 'editor' | 'viewer' = 'editor'
 ) {
-  return prisma.projectCollaborator.create({
+  return prisma().projectCollaborator.create({
     data: {
       projectId,
       userId,

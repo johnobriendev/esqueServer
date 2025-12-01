@@ -160,7 +160,7 @@ describe('Tasks API Integration Tests', () => {
         .delete(`/api/projects/${project.id}/tasks/${task.id}`)
         .expect(200);
 
-      const deleted = await prisma.task.findUnique({ where: { id: task.id } });
+      const deleted = await prisma().task.findUnique({ where: { id: task.id } });
       expect(deleted).toBeNull();
     });
   });

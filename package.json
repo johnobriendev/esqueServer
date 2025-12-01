@@ -7,8 +7,8 @@
     "dev": "nodemon",
     "build": "tsc",
     "test": "NODE_ENV=test jest",
-    "test:unit": "NODE_ENV=test jest tests/unit",
-    "test:integration": "NODE_ENV=test jest tests/integration",
+    "test:unit": "NODE_ENV=test jest --config jest.config.js",
+    "test:integration": "NODE_ENV=test jest --config jest.config.integration.js",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage"
   },

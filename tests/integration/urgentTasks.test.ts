@@ -223,7 +223,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Update task1 to make it newer
-      await prisma.task.update({
+      await prisma().task.update({
         where: { id: task1.id },
         data: { title: 'Updated Urgent' },
       });

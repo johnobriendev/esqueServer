@@ -172,7 +172,7 @@ describe('Projects API Integration Tests', () => {
 
       await request(app).delete(`/api/projects/${project.id}`).expect(200);
 
-      const deleted = await prisma.project.findUnique({ where: { id: project.id } });
+      const deleted = await prisma().project.findUnique({ where: { id: project.id } });
       expect(deleted).toBeNull();
     });
 

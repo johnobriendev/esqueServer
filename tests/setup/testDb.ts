@@ -1,39 +1,44 @@
 // tests/setup/testDb.ts
 import { PrismaClient } from '@prisma/client';
 
-// SAFETY CHECK: Ensure we ONLY run tests against a test database
-if (!process.env.TEST_DATABASE_URL) {
-  throw new Error(
-    'TEST_DATABASE_URL is not set. Tests require a separate test database. ' +
-    'Never run tests against production!'
-  );
-}
+// Allow import without error - check at runtime instead
+let prismaInstance: PrismaClient | null = null;
 
-// Additional safety: check that we're not accidentally pointing to production
-if (process.env.TEST_DATABASE_URL.includes('neondb')) {
-  throw new Error(
-    'TEST_DATABASE_URL appears to point to production database. ' +
-    'Tests require a separate test database!'
-  );
-}
+function getPrisma(): PrismaClient {
+  if (!prismaInstance) {
+    // Runtime check when actually used
+    if (!process.env.TEST_DATABASE_URL) {
+      throw new Error(
+        'TEST_DATABASE_URL is not set. Tests require a separate test database. ' +
+        'Never run tests against production!'
+      );
+    }
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.TEST_DATABASE_URL,
-    },
-  },
-});
+    // Safety: check not pointing to production
+    if (process.env.TEST_DATABASE_URL.includes('neondb')) {
+      throw new Error(
+        'TEST_DATABASE_URL appears to point to production database. ' +
+        'Tests require a separate test database!'
+      );
+    }
+
+    prismaInstance = new PrismaClient({
+      datasources: {
+        db: {
+          url: process.env.TEST_DATABASE_URL,
+        },
+      },
+    });
+  }
+  return prismaInstance;
+}
 
 /**
  * Clears all data from the test database
  * ONLY call this in test environment with TEST_DATABASE_URL set
  */
 export async function clearDatabase() {
-  // Double check we're in test mode
-  if (!process.env.TEST_DATABASE_URL) {
-    throw new Error('Cannot clear database: TEST_DATABASE_URL not set');
-  }
+  const client = getPrisma();
 
   const tables = [
     'TaskComment',
@@ -45,7 +50,7 @@ export async function clearDatabase() {
   ];
 
   for (const table of tables) {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE;`);
+    await client.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE;`);
   }
 }
 
@@ -53,7 +58,10 @@ export async function clearDatabase() {
  * Disconnects from the database
  */
 export async function disconnectDatabase() {
-  await prisma.$disconnect();
+  if (prismaInstance) {
+    await prismaInstance.$disconnect();
+  }
 }
 
-export { prisma };
+// Export prisma as getter function
+export const prisma = getPrisma;
