@@ -8,16 +8,35 @@ import {
   createTestTask,
   createCollaborator,
 } from '../setup/testHelpers';
+import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
 
 // Mock the auth middleware
-jest.mock('../../src/middleware/auth', () => ({
-  checkJwt: (req: any, res: any, next: any) => next(),
-  extractUserInfo: (req: any, res: any, next: any) => next(),
-}));
+jest.mock('../../src/middleware/auth', () => {
+  const { getMockAuth } = require('../setup/authMock');
+  return {
+    checkJwt: (req: any, _res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.auth = { payload: { sub: mockAuth.auth0Id } };
+      }
+      next();
+    },
+    extractUserInfo: async (req: any, res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.user = mockAuth;
+        next();
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+    },
+  };
+});
 
 describe('Urgent Tasks API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
+    clearMockAuth();
   });
 
   describe('GET /api/tasks/urgent', () => {
@@ -42,10 +61,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         priority: 'medium',
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -74,10 +90,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Collaborator should see the urgent task
-      app.use((req, _res, next) => {
-        req.auth = { sub: collaborator.authProviderId };
-        next();
-      });
+      setMockAuth(collaborator.authProviderId, collaborator.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -109,10 +122,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         priority: 'urgent',
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: user1.authProviderId };
-        next();
-      });
+      setMockAuth(user1.authProviderId, user1.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -135,10 +145,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Other user should not see it
-      app.use((req, _res, next) => {
-        req.auth = { sub: otherUser.authProviderId };
-        next();
-      });
+      setMockAuth(otherUser.authProviderId, otherUser.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -156,10 +163,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       await createTestTask(project.id, { title: 'Medium Task', priority: 'medium' });
       await createTestTask(project.id, { title: 'High Task', priority: 'high' });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -171,10 +175,7 @@ describe('Urgent Tasks API Integration Tests', () => {
     it('should return empty array when user has no projects', async () => {
       const user = await createTestUser();
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: user.authProviderId };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -192,10 +193,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       await createTestTask(project.id, { priority: 'low' });
       await createTestTask(project.id, { priority: 'medium' });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -228,10 +226,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         data: { title: 'Updated Urgent' },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -255,10 +250,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Viewer should be able to see urgent tasks
-      app.use((req, _res, next) => {
-        req.auth = { sub: viewer.authProviderId };
-        next();
-      });
+      setMockAuth(viewer.authProviderId, viewer.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -280,10 +272,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         priority: 'urgent',
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -314,10 +303,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         });
       }
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get('/api/tasks/urgent')

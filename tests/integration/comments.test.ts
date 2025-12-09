@@ -7,18 +7,37 @@ import {
   createTestProject,
   createTestTask,
   createCollaborator,
-  mockAuth,
 } from '../setup/testHelpers';
+import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
 
 // Mock the auth middleware
-jest.mock('../../src/middleware/auth', () => ({
-  requireAuth: (req: any, res: any, next: any) => next(),
-}));
+jest.mock('../../src/middleware/auth', () => {
+  const { getMockAuth } = require('../setup/authMock');
+  return {
+    checkJwt: (req: any, _res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.auth = { payload: { sub: mockAuth.auth0Id } };
+      }
+      next();
+    },
+    extractUserInfo: async (req: any, res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.user = mockAuth;
+        next();
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+    },
+  };
+});
 
 describe('Comment API Integration Tests', () => {
   beforeEach(async () => {
     // Manually clear database before each test
     await clearDatabase();
+    clearMockAuth();
   });
 
   describe('GET /api/tasks/:taskId/comments', () => {
@@ -36,11 +55,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      // Mock auth to inject user
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get(`/api/tasks/${task.id}/comments`)
@@ -57,10 +72,7 @@ describe('Comment API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: otherUser.authProviderId };
-        next();
-      });
+      setMockAuth(otherUser.authProviderId, otherUser.email);
 
       await request(app)
         .get(`/api/tasks/${task.id}/comments`)
@@ -70,10 +82,7 @@ describe('Comment API Integration Tests', () => {
     it('should return 404 when task does not exist', async () => {
       const user = await createTestUser();
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: user.authProviderId };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       await request(app)
         .get('/api/tasks/non-existent-id/comments')
@@ -87,10 +96,7 @@ describe('Comment API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .post(`/api/tasks/${task.id}/comments`)
@@ -109,10 +115,7 @@ describe('Comment API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: editor.authProviderId };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       const response = await request(app)
         .post(`/api/tasks/${task.id}/comments`)
@@ -129,10 +132,7 @@ describe('Comment API Integration Tests', () => {
       await createCollaborator(project.id, viewer.id, 'viewer');
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: viewer.authProviderId };
-        next();
-      });
+      setMockAuth(viewer.authProviderId, viewer.email);
 
       await request(app)
         .post(`/api/tasks/${task.id}/comments`)
@@ -154,10 +154,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .put(`/api/comments/${comment.id}`)
@@ -181,10 +178,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: editor.authProviderId };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       await request(app)
         .put(`/api/comments/${comment.id}`)
@@ -206,10 +200,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       await request(app)
         .delete(`/api/comments/${comment.id}`)
@@ -238,10 +229,7 @@ describe('Comment API Integration Tests', () => {
       });
 
       // Owner deletes it
-      app.use((req, _res, next) => {
-        req.auth = { sub: owner.authProviderId };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       await request(app)
         .delete(`/api/comments/${comment.id}`)
@@ -265,10 +253,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { sub: editor2.authProviderId };
-        next();
-      });
+      setMockAuth(editor2.authProviderId, editor2.email);
 
       await request(app)
         .delete(`/api/comments/${comment.id}`)

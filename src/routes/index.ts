@@ -4,6 +4,7 @@ import userRoutes from './userRoutes';
 import projectRoutes from './projectRoutes';
 import teamRoutes from './teamRoutes';
 import crossProjectTaskRoutes from './crossProjectTaskRoutes';
+import commentRoutes from './commentRoutes';
 
 
 const router = Router();
@@ -24,6 +25,10 @@ router.use('/team', teamRoutes);
 
 // Cross-project task routes
 router.use('/tasks', crossProjectTaskRoutes);
+
+// Standalone comment routes (also available nested under projects)
+router.use('/tasks/:taskId/comments', commentRoutes);
+router.use('/comments', commentRoutes);
 
 // Project-scoped task routes are under /projects/:projectId/tasks
 // See projectRoutes.ts for nested task routes

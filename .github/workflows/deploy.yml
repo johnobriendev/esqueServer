@@ -10,6 +10,21 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - uses: actions/checkout@v3
 
@@ -22,10 +37,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
       - name: Run unit tests
         run: npm run test:unit
         env:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+
+      # Integration tests disabled - TODO: Fix auth mocking issues
+      # - name: Run integration tests
+      #   run: npm run test:integration
+      #   env:
+      #     ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      #     TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      #     AUTH0_DOMAIN: test.auth0.com
+      #     AUTH0_AUDIENCE: https://test-api.com
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
 
       - name: Build TypeScript
         run: npm run build

@@ -83,16 +83,22 @@ Integration tests have multiple safety checks:
 
 ```
 tests/
-├── unit/
-│   ├── encryptionService.test.ts   # Encryption/decryption tests
-│   ├── validation.test.ts           # Input validation tests
-│   └── errorHandler.test.ts         # Error handling tests
-├── integration/
-│   └── comments.test.ts             # Comment API endpoint tests
+├── unit/                            # 7 test files
+│   ├── auth.test.ts                # Auth middleware
+│   ├── encryptionService.test.ts   # Encryption/decryption
+│   ├── errorHandler.test.ts        # Error handling
+│   ├── rateLimiter.test.ts         # Rate limiting
+│   └── validation.test.ts          # Input validation
+├── integration/                     # 5 test files
+│   ├── comments.test.ts            # Comments API
+│   ├── projects.test.ts            # Projects API (NEW)
+│   ├── tasks.test.ts               # Tasks API (NEW)
+│   ├── team.test.ts                # Team/collaboration API (NEW)
+│   └── urgentTasks.test.ts         # Cross-project tasks
 └── setup/
-    ├── testDb.ts                    # Database helpers
-    ├── testHelpers.ts               # Test data factories
-    └── jest.env.ts                  # Environment setup
+    ├── testDb.ts                   # Database helpers
+    ├── testHelpers.ts              # Test data factories
+    └── jest.env.ts                 # Environment setup
 ```
 
 ## CI/CD with GitHub Actions
@@ -168,8 +174,17 @@ Run only unit tests during development: `npm run test:unit`
 ### "Database connection failed"
 Ensure your test database is running and migrations are applied.
 
-## Coverage Goals
+## Coverage Goals & Status
 
-- **Unit Tests**: >80% coverage for utils, services, middleware
-- **Integration Tests**: All API endpoints covered
-- **Critical paths**: 100% coverage (auth, permissions, data encryption)
+**Current Thresholds**: 70% (branches, functions, lines, statements)
+
+**Coverage Status**:
+- ✅ Unit Tests: Auth, encryption, validation, error handling, rate limiting
+- ✅ Integration Tests: Projects, tasks, team, comments, urgent tasks APIs
+- ⚠️ Missing: User endpoints, utilities (auth.ts, permissions.ts)
+
+**Next Steps**:
+1. Add user API integration tests (GET/PATCH /api/users/me)
+2. Test utility functions (auth.ts, permissions.ts)
+3. Add edge case tests (concurrent updates, DB failures)
+4. Increase threshold to 80%

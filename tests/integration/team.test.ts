@@ -3,15 +3,34 @@ import request from 'supertest';
 import app from '../../src/app';
 import { clearDatabase, prisma } from '../setup/testDb';
 import { createTestUser, createTestProject, createCollaborator } from '../setup/testHelpers';
+import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
 
-jest.mock('../../src/middleware/auth', () => ({
-  checkJwt: (req: any, res: any, next: any) => next(),
-  extractUserInfo: (req: any, res: any, next: any) => next(),
-}));
+jest.mock('../../src/middleware/auth', () => {
+  const { getMockAuth } = require('../setup/authMock');
+  return {
+    checkJwt: (req: any, _res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.auth = { payload: { sub: mockAuth.auth0Id } };
+      }
+      next();
+    },
+    extractUserInfo: async (req: any, res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.user = mockAuth;
+        next();
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+    },
+  };
+});
 
 describe('Team API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
+    clearMockAuth();
   });
 
   describe('POST /api/team/projects/:id/invite', () => {
@@ -19,10 +38,7 @@ describe('Team API Integration Tests', () => {
       const owner = await createTestUser();
       const project = await createTestProject(owner.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: owner.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .post(`/api/team/projects/${project.id}/invite`)
@@ -40,10 +56,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: editor.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       await request(app)
         .post(`/api/team/projects/${project.id}/invite`)
@@ -69,10 +82,7 @@ describe('Team API Integration Tests', () => {
         },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: invitee.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(invitee.authProviderId, invitee.email);
 
       const response = await request(app).get('/api/team/users/invitations').expect(200);
 
@@ -98,10 +108,7 @@ describe('Team API Integration Tests', () => {
         },
       });
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: invitee.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(invitee.authProviderId, invitee.email);
 
       const response = await request(app)
         .post(`/api/team/invitations/${invitation.token}/accept`)
@@ -119,10 +126,7 @@ describe('Team API Integration Tests', () => {
     it('should return 404 for invalid token', async () => {
       const user = await createTestUser();
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: user.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       await request(app).post('/api/team/invitations/invalid-token/accept').expect(404);
     });
@@ -137,10 +141,7 @@ describe('Team API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       await createCollaborator(project.id, viewer.id, 'viewer');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: owner.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .get(`/api/team/projects/${project.id}/collaborators`)
@@ -157,10 +158,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: owner.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       await request(app)
         .delete(`/api/team/projects/${project.id}/collaborators/${editor.id}`)
@@ -180,10 +178,7 @@ describe('Team API Integration Tests', () => {
       await createCollaborator(project.id, editor1.id, 'editor');
       await createCollaborator(project.id, editor2.id, 'editor');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: editor1.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(editor1.authProviderId, editor1.email);
 
       await request(app)
         .delete(`/api/team/projects/${project.id}/collaborators/${editor2.id}`)
@@ -198,10 +193,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: owner.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(owner.authProviderId, owner.email);
 
       const response = await request(app)
         .put(`/api/team/projects/${project.id}/collaborators/${editor.id}/role`)
@@ -222,10 +214,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: editor.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       await request(app)
         .put(`/api/team/projects/${project.id}/collaborators/${editor.id}/role`)

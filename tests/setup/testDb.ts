@@ -40,18 +40,10 @@ function getPrisma(): PrismaClient {
 export async function clearDatabase() {
   const client = getPrisma();
 
-  const tables = [
-    'TaskComment',
-    'Task',
-    'ProjectInvitation',
-    'ProjectCollaborator',
-    'Project',
-    'User',
-  ];
-
-  for (const table of tables) {
-    await client.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE;`);
-  }
+  // Use a single transaction to avoid deadlocks
+  await client.$executeRawUnsafe(`
+    TRUNCATE TABLE "TaskComment", "Task", "ProjectInvitation", "ProjectCollaborator", "Project", "User" CASCADE;
+  `);
 }
 
 /**

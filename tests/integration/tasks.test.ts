@@ -3,15 +3,34 @@ import request from 'supertest';
 import app from '../../src/app';
 import { clearDatabase, prisma } from '../setup/testDb';
 import { createTestUser, createTestProject, createTestTask, createCollaborator } from '../setup/testHelpers';
+import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
 
-jest.mock('../../src/middleware/auth', () => ({
-  checkJwt: (req: any, res: any, next: any) => next(),
-  extractUserInfo: (req: any, res: any, next: any) => next(),
-}));
+jest.mock('../../src/middleware/auth', () => {
+  const { getMockAuth } = require('../setup/authMock');
+  return {
+    checkJwt: (req: any, _res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.auth = { payload: { sub: mockAuth.auth0Id } };
+      }
+      next();
+    },
+    extractUserInfo: async (req: any, res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.user = mockAuth;
+        next();
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+    },
+  };
+});
 
 describe('Tasks API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
+    clearMockAuth();
   });
 
   describe('GET /api/projects/:projectId/tasks', () => {
@@ -21,10 +40,7 @@ describe('Tasks API Integration Tests', () => {
       await createTestTask(project.id, { title: 'Task 1' });
       await createTestTask(project.id, { title: 'Task 2' });
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: user.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .get(`/api/projects/${project.id}/tasks`)
@@ -38,10 +54,7 @@ describe('Tasks API Integration Tests', () => {
       const otherUser = await createTestUser();
       const project = await createTestProject(owner.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: otherUser.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(otherUser.authProviderId, otherUser.email);
 
       await request(app).get(`/api/projects/${project.id}/tasks`).expect(403);
     });
@@ -52,10 +65,7 @@ describe('Tasks API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: user.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .post(`/api/projects/${project.id}/tasks`)
@@ -72,10 +82,7 @@ describe('Tasks API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: editor.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       const response = await request(app)
         .post(`/api/projects/${project.id}/tasks`)
@@ -91,10 +98,7 @@ describe('Tasks API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, viewer.id, 'viewer');
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: viewer.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(viewer.authProviderId, viewer.email);
 
       await request(app)
         .post(`/api/projects/${project.id}/tasks`)
@@ -111,10 +115,7 @@ describe('Tasks API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: editor.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       const response = await request(app)
         .patch(`/api/projects/${project.id}/tasks/${task.id}`)
@@ -131,10 +132,7 @@ describe('Tasks API Integration Tests', () => {
       await createCollaborator(project.id, viewer.id, 'viewer');
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: viewer.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(viewer.authProviderId, viewer.email);
 
       await request(app)
         .patch(`/api/projects/${project.id}/tasks/${task.id}`)
@@ -151,10 +149,7 @@ describe('Tasks API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: editor.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       await request(app)
         .delete(`/api/projects/${project.id}/tasks/${task.id}`)
@@ -172,10 +167,7 @@ describe('Tasks API Integration Tests', () => {
       const task1 = await createTestTask(project.id);
       const task2 = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: user.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .put(`/api/projects/${project.id}/tasks/bulk`)
@@ -196,10 +188,7 @@ describe('Tasks API Integration Tests', () => {
       const task1 = await createTestTask(project.id);
       const task2 = await createTestTask(project.id);
 
-      app.use((req, _res, next) => {
-        req.auth = { payload: { sub: user.authProviderId }, header: {}, token: '' };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .put(`/api/projects/${project.id}/tasks/reorder`)

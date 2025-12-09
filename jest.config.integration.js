@@ -7,4 +7,6 @@ module.exports = {
   verbose: true,
   testTimeout: 10000,
   setupFiles: ['<rootDir>/tests/setup/jest.env.ts'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup/teardown.ts'],
+  maxWorkers: 1, // Prevent parallel test execution causing DB deadlocks
 };

@@ -3,15 +3,34 @@ import request from 'supertest';
 import app from '../../src/app';
 import { clearDatabase, prisma } from '../setup/testDb';
 import { createTestUser, createTestProject, createCollaborator } from '../setup/testHelpers';
+import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
 
-jest.mock('../../src/middleware/auth', () => ({
-  checkJwt: (req: any, _res: any, next: any) => next(),
-  extractUserInfo: (req: any, _res: any, next: any) => next(),
-}));
+jest.mock('../../src/middleware/auth', () => {
+  const { getMockAuth } = require('../setup/authMock');
+  return {
+    checkJwt: (req: any, _res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.auth = { payload: { sub: mockAuth.auth0Id } };
+      }
+      next();
+    },
+    extractUserInfo: async (req: any, res: any, next: any) => {
+      const mockAuth = getMockAuth();
+      if (mockAuth) {
+        req.user = mockAuth;
+        next();
+      } else {
+        res.status(401).json({ error: 'Unauthorized' });
+      }
+    },
+  };
+});
 
 describe('Projects API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
+    clearMockAuth();
   });
 
   describe('GET /api/projects', () => {
@@ -23,10 +42,7 @@ describe('Projects API Integration Tests', () => {
       const sharedProject = await createTestProject(otherUser.id, { name: 'Shared Project' });
       await createCollaborator(sharedProject.id, user.id, 'editor');
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app).get('/api/projects').expect(200);
 
@@ -38,10 +54,7 @@ describe('Projects API Integration Tests', () => {
     it('should return empty array when user has no projects', async () => {
       const user = await createTestUser();
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app).get('/api/projects').expect(200);
 
@@ -54,10 +67,7 @@ describe('Projects API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app).get(`/api/projects/${project.id}`).expect(200);
 
@@ -70,10 +80,7 @@ describe('Projects API Integration Tests', () => {
       const otherUser = await createTestUser();
       const project = await createTestProject(owner.id);
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: otherUser.authProviderId } };
-        next();
-      });
+      setMockAuth(otherUser.authProviderId, otherUser.email);
 
       await request(app).get(`/api/projects/${project.id}`).expect(403);
     });
@@ -81,10 +88,7 @@ describe('Projects API Integration Tests', () => {
     it('should return 404 when project does not exist', async () => {
       const user = await createTestUser();
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       await request(app).get('/api/projects/non-existent-id').expect(404);
     });
@@ -94,10 +98,7 @@ describe('Projects API Integration Tests', () => {
     it('should create project successfully', async () => {
       const user = await createTestUser();
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .post('/api/projects')
@@ -112,10 +113,7 @@ describe('Projects API Integration Tests', () => {
     it('should fail when name is missing', async () => {
       const user = await createTestUser();
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       await request(app)
         .post('/api/projects')
@@ -129,10 +127,7 @@ describe('Projects API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       const response = await request(app)
         .patch(`/api/projects/${project.id}`)
@@ -148,10 +143,7 @@ describe('Projects API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: editor.authProviderId } };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       await request(app)
         .patch(`/api/projects/${project.id}`)
@@ -165,10 +157,7 @@ describe('Projects API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: user.authProviderId } };
-        next();
-      });
+      setMockAuth(user.authProviderId, user.email);
 
       await request(app).delete(`/api/projects/${project.id}`).expect(200);
 
@@ -182,10 +171,7 @@ describe('Projects API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      app.use((req: any, _res: any, next: any) => {
-        req.auth = { payload: { sub: editor.authProviderId } };
-        next();
-      });
+      setMockAuth(editor.authProviderId, editor.email);
 
       await request(app).delete(`/api/projects/${project.id}`).expect(403);
     });
