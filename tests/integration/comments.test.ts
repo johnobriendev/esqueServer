@@ -8,9 +8,18 @@ import {
   createTestTask,
   createCollaborator,
 } from '../setup/testHelpers';
-import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
+import { setMockAuth, clearMockAuth } from '../setup/authMock';
 
 // Mock the auth middleware
+// Mock prisma to use test database client
+jest.mock('../../src/models/prisma', () => {
+  const { prisma } = require('../setup/testDb');
+  return {
+    __esModule: true,
+    default: prisma(),
+  };
+});
+
 jest.mock('../../src/middleware/auth', () => {
   const { getMockAuth } = require('../setup/authMock');
   return {
@@ -32,6 +41,18 @@ jest.mock('../../src/middleware/auth', () => {
     },
   };
 });
+
+
+jest.mock('../../src/utils/auth', () => ({
+  getAuthenticatedUser: jest.fn(async (req: any) => {
+    const { getMockUser } = require('../setup/authMock');
+    const mockUser = getMockUser();
+    if (!mockUser) {
+      throw new Error('Unauthorized');
+    }
+    return mockUser;
+  }),
+}));
 
 describe('Comment API Integration Tests', () => {
   beforeEach(async () => {
@@ -55,7 +76,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get(`/api/tasks/${task.id}/comments`)
@@ -72,7 +93,7 @@ describe('Comment API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       const task = await createTestTask(project.id);
 
-      setMockAuth(otherUser.authProviderId, otherUser.email);
+      setMockAuth(otherUser.authProviderId, otherUser.email, otherUser);
 
       await request(app)
         .get(`/api/tasks/${task.id}/comments`)
@@ -82,7 +103,7 @@ describe('Comment API Integration Tests', () => {
     it('should return 404 when task does not exist', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       await request(app)
         .get('/api/tasks/non-existent-id/comments')
@@ -96,7 +117,7 @@ describe('Comment API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       const task = await createTestTask(project.id);
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .post(`/api/tasks/${task.id}/comments`)
@@ -115,7 +136,7 @@ describe('Comment API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       const response = await request(app)
         .post(`/api/tasks/${task.id}/comments`)
@@ -132,7 +153,7 @@ describe('Comment API Integration Tests', () => {
       await createCollaborator(project.id, viewer.id, 'viewer');
       const task = await createTestTask(project.id);
 
-      setMockAuth(viewer.authProviderId, viewer.email);
+      setMockAuth(viewer.authProviderId, viewer.email, viewer);
 
       await request(app)
         .post(`/api/tasks/${task.id}/comments`)
@@ -154,10 +175,10 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
-        .put(`/api/comments/${comment.id}`)
+        .patch(`/api/comments/${comment.id}`)
         .send({ content: 'Updated content' })
         .expect(200);
 
@@ -178,10 +199,10 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       await request(app)
-        .put(`/api/comments/${comment.id}`)
+        .patch(`/api/comments/${comment.id}`)
         .send({ content: 'Updated content' })
         .expect(403);
     });
@@ -200,7 +221,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       await request(app)
         .delete(`/api/comments/${comment.id}`)
@@ -229,7 +250,7 @@ describe('Comment API Integration Tests', () => {
       });
 
       // Owner deletes it
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       await request(app)
         .delete(`/api/comments/${comment.id}`)
@@ -253,7 +274,7 @@ describe('Comment API Integration Tests', () => {
         },
       });
 
-      setMockAuth(editor2.authProviderId, editor2.email);
+      setMockAuth(editor2.authProviderId, editor2.email, editor2);
 
       await request(app)
         .delete(`/api/comments/${comment.id}`)

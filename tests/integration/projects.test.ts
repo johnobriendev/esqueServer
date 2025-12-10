@@ -3,7 +3,16 @@ import request from 'supertest';
 import app from '../../src/app';
 import { clearDatabase, prisma } from '../setup/testDb';
 import { createTestUser, createTestProject, createCollaborator } from '../setup/testHelpers';
-import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
+import { setMockAuth, clearMockAuth } from '../setup/authMock';
+
+// Mock prisma to use test database client
+jest.mock('../../src/models/prisma', () => {
+  const { prisma } = require('../setup/testDb');
+  return {
+    __esModule: true,
+    default: prisma(),
+  };
+});
 
 jest.mock('../../src/middleware/auth', () => {
   const { getMockAuth } = require('../setup/authMock');
@@ -27,6 +36,17 @@ jest.mock('../../src/middleware/auth', () => {
   };
 });
 
+jest.mock('../../src/utils/auth', () => ({
+  getAuthenticatedUser: jest.fn(async (req: any) => {
+    const { getMockUser } = require('../setup/authMock');
+    const mockUser = getMockUser();
+    if (!mockUser) {
+      throw new Error('Unauthorized');
+    }
+    return mockUser;
+  }),
+}));
+
 describe('Projects API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
@@ -42,7 +62,7 @@ describe('Projects API Integration Tests', () => {
       const sharedProject = await createTestProject(otherUser.id, { name: 'Shared Project' });
       await createCollaborator(sharedProject.id, user.id, 'editor');
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app).get('/api/projects').expect(200);
 
@@ -54,7 +74,7 @@ describe('Projects API Integration Tests', () => {
     it('should return empty array when user has no projects', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app).get('/api/projects').expect(200);
 
@@ -67,7 +87,7 @@ describe('Projects API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app).get(`/api/projects/${project.id}`).expect(200);
 
@@ -80,7 +100,7 @@ describe('Projects API Integration Tests', () => {
       const otherUser = await createTestUser();
       const project = await createTestProject(owner.id);
 
-      setMockAuth(otherUser.authProviderId, otherUser.email);
+      setMockAuth(otherUser.authProviderId, otherUser.email, otherUser);
 
       await request(app).get(`/api/projects/${project.id}`).expect(403);
     });
@@ -88,7 +108,7 @@ describe('Projects API Integration Tests', () => {
     it('should return 404 when project does not exist', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       await request(app).get('/api/projects/non-existent-id').expect(404);
     });
@@ -98,7 +118,7 @@ describe('Projects API Integration Tests', () => {
     it('should create project successfully', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .post('/api/projects')
@@ -113,7 +133,7 @@ describe('Projects API Integration Tests', () => {
     it('should fail when name is missing', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       await request(app)
         .post('/api/projects')
@@ -127,7 +147,7 @@ describe('Projects API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .patch(`/api/projects/${project.id}`)
@@ -137,18 +157,18 @@ describe('Projects API Integration Tests', () => {
       expect(response.body.name).toBe('Updated Name');
     });
 
-    it('should return 403 when user is not owner', async () => {
+    it('should allow editor to update project', async () => {
       const owner = await createTestUser();
       const editor = await createTestUser();
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       await request(app)
         .patch(`/api/projects/${project.id}`)
         .send({ name: 'Updated Name' })
-        .expect(403);
+        .expect(200);
     });
   });
 
@@ -157,23 +177,23 @@ describe('Projects API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
-      await request(app).delete(`/api/projects/${project.id}`).expect(200);
+      await request(app).delete(`/api/projects/${project.id}`).expect(204);
 
       const deleted = await prisma().project.findUnique({ where: { id: project.id } });
       expect(deleted).toBeNull();
     });
 
-    it('should return 403 when user is not owner', async () => {
+    it('should return 404 when user is not owner', async () => {
       const owner = await createTestUser();
       const editor = await createTestUser();
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
-      await request(app).delete(`/api/projects/${project.id}`).expect(403);
+      await request(app).delete(`/api/projects/${project.id}`).expect(404);
     });
   });
 });

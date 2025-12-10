@@ -3,7 +3,16 @@ import request from 'supertest';
 import app from '../../src/app';
 import { clearDatabase, prisma } from '../setup/testDb';
 import { createTestUser, createTestProject, createTestTask, createCollaborator } from '../setup/testHelpers';
-import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
+import { setMockAuth, clearMockAuth } from '../setup/authMock';
+
+// Mock prisma to use test database client
+jest.mock('../../src/models/prisma', () => {
+  const { prisma } = require('../setup/testDb');
+  return {
+    __esModule: true,
+    default: prisma(),
+  };
+});
 
 jest.mock('../../src/middleware/auth', () => {
   const { getMockAuth } = require('../setup/authMock');
@@ -27,6 +36,18 @@ jest.mock('../../src/middleware/auth', () => {
   };
 });
 
+
+jest.mock('../../src/utils/auth', () => ({
+  getAuthenticatedUser: jest.fn(async (req: any) => {
+    const { getMockUser } = require('../setup/authMock');
+    const mockUser = getMockUser();
+    if (!mockUser) {
+      throw new Error('Unauthorized');
+    }
+    return mockUser;
+  }),
+}));
+
 describe('Tasks API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
@@ -40,7 +61,7 @@ describe('Tasks API Integration Tests', () => {
       await createTestTask(project.id, { title: 'Task 1' });
       await createTestTask(project.id, { title: 'Task 2' });
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .get(`/api/projects/${project.id}/tasks`)
@@ -54,7 +75,7 @@ describe('Tasks API Integration Tests', () => {
       const otherUser = await createTestUser();
       const project = await createTestProject(owner.id);
 
-      setMockAuth(otherUser.authProviderId, otherUser.email);
+      setMockAuth(otherUser.authProviderId, otherUser.email, otherUser);
 
       await request(app).get(`/api/projects/${project.id}/tasks`).expect(403);
     });
@@ -65,7 +86,7 @@ describe('Tasks API Integration Tests', () => {
       const user = await createTestUser();
       const project = await createTestProject(user.id);
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .post(`/api/projects/${project.id}/tasks`)
@@ -82,7 +103,7 @@ describe('Tasks API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       const response = await request(app)
         .post(`/api/projects/${project.id}/tasks`)
@@ -98,7 +119,7 @@ describe('Tasks API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, viewer.id, 'viewer');
 
-      setMockAuth(viewer.authProviderId, viewer.email);
+      setMockAuth(viewer.authProviderId, viewer.email, viewer);
 
       await request(app)
         .post(`/api/projects/${project.id}/tasks`)
@@ -115,7 +136,7 @@ describe('Tasks API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       const response = await request(app)
         .patch(`/api/projects/${project.id}/tasks/${task.id}`)
@@ -132,7 +153,7 @@ describe('Tasks API Integration Tests', () => {
       await createCollaborator(project.id, viewer.id, 'viewer');
       const task = await createTestTask(project.id);
 
-      setMockAuth(viewer.authProviderId, viewer.email);
+      setMockAuth(viewer.authProviderId, viewer.email, viewer);
 
       await request(app)
         .patch(`/api/projects/${project.id}/tasks/${task.id}`)
@@ -149,11 +170,11 @@ describe('Tasks API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       const task = await createTestTask(project.id);
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       await request(app)
         .delete(`/api/projects/${project.id}/tasks/${task.id}`)
-        .expect(200);
+        .expect(204);
 
       const deleted = await prisma().task.findUnique({ where: { id: task.id } });
       expect(deleted).toBeNull();
@@ -167,7 +188,7 @@ describe('Tasks API Integration Tests', () => {
       const task1 = await createTestTask(project.id);
       const task2 = await createTestTask(project.id);
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .put(`/api/projects/${project.id}/tasks/bulk`)
@@ -188,7 +209,7 @@ describe('Tasks API Integration Tests', () => {
       const task1 = await createTestTask(project.id);
       const task2 = await createTestTask(project.id);
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .put(`/api/projects/${project.id}/tasks/reorder`)
@@ -200,7 +221,9 @@ describe('Tasks API Integration Tests', () => {
         })
         .expect(200);
 
-      expect(response.body.count).toBe(2);
+      expect(response.body).toHaveLength(2);
+      expect(response.body[0].position).toBeDefined();
+      expect(response.body[1].position).toBeDefined();
     });
   });
 });

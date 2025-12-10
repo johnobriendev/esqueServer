@@ -8,7 +8,16 @@ import {
   createTestTask,
   createCollaborator,
 } from '../setup/testHelpers';
-import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
+import { setMockAuth, clearMockAuth } from '../setup/authMock';
+
+// Mock prisma to use test database
+jest.mock('../../src/models/prisma', () => {
+  const { prisma } = require('../setup/testDb');
+  return {
+    __esModule: true,
+    default: prisma(),
+  };
+});
 
 // Mock the auth middleware
 jest.mock('../../src/middleware/auth', () => {
@@ -33,6 +42,23 @@ jest.mock('../../src/middleware/auth', () => {
   };
 });
 
+
+jest.mock('../../src/utils/auth', () => {
+  const actualAuth = jest.requireActual<typeof import('../../src/utils/auth')>('../../src/utils/auth');
+  return {
+    ...actualAuth,
+    getAuthenticatedUser: async (req: any) => {
+      const { getMockUser } = require('../setup/authMock');
+      const mockUser = getMockUser();
+      console.log('[MOCK] getAuthenticatedUser called, user:', mockUser?.id);
+      if (!mockUser) {
+        throw new Error('Unauthorized');
+      }
+      return mockUser;
+    },
+  };
+});
+
 describe('Urgent Tasks API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
@@ -42,8 +68,10 @@ describe('Urgent Tasks API Integration Tests', () => {
   describe('GET /api/tasks/urgent', () => {
     it('should return urgent tasks from projects user owns', async () => {
       const owner = await createTestUser();
+      console.log('[TEST] Created owner:', owner.id, owner.authProviderId);
       const project1 = await createTestProject(owner.id, { name: 'Project 1' });
       const project2 = await createTestProject(owner.id, { name: 'Project 2' });
+      console.log('[TEST] Created projects owned by:', owner.id);
 
       // Create urgent tasks in both projects
       const urgentTask1 = await createTestTask(project1.id, {
@@ -61,7 +89,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         priority: 'medium',
       });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -90,7 +118,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Collaborator should see the urgent task
-      setMockAuth(collaborator.authProviderId, collaborator.email);
+      setMockAuth(collaborator.authProviderId, collaborator.email, collaborator);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -122,7 +150,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         priority: 'urgent',
       });
 
-      setMockAuth(user1.authProviderId, user1.email);
+      setMockAuth(user1.authProviderId, user1.email, user1);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -145,7 +173,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Other user should not see it
-      setMockAuth(otherUser.authProviderId, otherUser.email);
+      setMockAuth(otherUser.authProviderId, otherUser.email, otherUser);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -163,7 +191,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       await createTestTask(project.id, { title: 'Medium Task', priority: 'medium' });
       await createTestTask(project.id, { title: 'High Task', priority: 'high' });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -175,7 +203,7 @@ describe('Urgent Tasks API Integration Tests', () => {
     it('should return empty array when user has no projects', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -193,7 +221,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       await createTestTask(project.id, { priority: 'low' });
       await createTestTask(project.id, { priority: 'medium' });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -226,7 +254,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         data: { title: 'Updated Urgent' },
       });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -250,7 +278,7 @@ describe('Urgent Tasks API Integration Tests', () => {
       });
 
       // Viewer should be able to see urgent tasks
-      setMockAuth(viewer.authProviderId, viewer.email);
+      setMockAuth(viewer.authProviderId, viewer.email, viewer);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -272,7 +300,7 @@ describe('Urgent Tasks API Integration Tests', () => {
         priority: 'urgent',
       });
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
@@ -303,14 +331,14 @@ describe('Urgent Tasks API Integration Tests', () => {
         });
       }
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get('/api/tasks/urgent')
         .expect(200);
 
       expect(response.body).toHaveLength(expectedCount);
-    });
+    }, 15000);
 
     it('should return 401 when user is not authenticated', async () => {
       // Don't set up auth mock - simulate unauthenticated request

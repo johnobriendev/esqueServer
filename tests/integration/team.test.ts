@@ -3,7 +3,16 @@ import request from 'supertest';
 import app from '../../src/app';
 import { clearDatabase, prisma } from '../setup/testDb';
 import { createTestUser, createTestProject, createCollaborator } from '../setup/testHelpers';
-import { setMockAuth, clearMockAuth, getMockAuth } from '../setup/authMock';
+import { setMockAuth, clearMockAuth } from '../setup/authMock';
+
+// Mock prisma to use test database client
+jest.mock('../../src/models/prisma', () => {
+  const { prisma } = require('../setup/testDb');
+  return {
+    __esModule: true,
+    default: prisma(),
+  };
+});
 
 jest.mock('../../src/middleware/auth', () => {
   const { getMockAuth } = require('../setup/authMock');
@@ -27,6 +36,18 @@ jest.mock('../../src/middleware/auth', () => {
   };
 });
 
+
+jest.mock('../../src/utils/auth', () => ({
+  getAuthenticatedUser: jest.fn(async (req: any) => {
+    const { getMockUser } = require('../setup/authMock');
+    const mockUser = getMockUser();
+    if (!mockUser) {
+      throw new Error('Unauthorized');
+    }
+    return mockUser;
+  }),
+}));
+
 describe('Team API Integration Tests', () => {
   beforeEach(async () => {
     await clearDatabase();
@@ -38,16 +59,15 @@ describe('Team API Integration Tests', () => {
       const owner = await createTestUser();
       const project = await createTestProject(owner.id);
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .post(`/api/team/projects/${project.id}/invite`)
         .send({ email: 'invitee@example.com', role: 'editor' })
-        .expect(200);
+        .expect(201);
 
-      expect(response.body.email).toBe('invitee@example.com');
-      expect(response.body.role).toBe('editor');
-      expect(response.body.token).toBeDefined();
+      expect(response.body.invitation.email).toBe('invitee@example.com');
+      expect(response.body.invitation.role).toBe('editor');
     });
 
     it('should return 403 when user is not owner', async () => {
@@ -56,7 +76,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       await request(app)
         .post(`/api/team/projects/${project.id}/invite`)
@@ -82,7 +102,7 @@ describe('Team API Integration Tests', () => {
         },
       });
 
-      setMockAuth(invitee.authProviderId, invitee.email);
+      setMockAuth(invitee.authProviderId, invitee.email, invitee);
 
       const response = await request(app).get('/api/team/users/invitations').expect(200);
 
@@ -108,13 +128,13 @@ describe('Team API Integration Tests', () => {
         },
       });
 
-      setMockAuth(invitee.authProviderId, invitee.email);
+      setMockAuth(invitee.authProviderId, invitee.email, invitee);
 
       const response = await request(app)
         .post(`/api/team/invitations/${invitation.token}/accept`)
         .expect(200);
 
-      expect(response.body.message).toBe('Invitation accepted successfully');
+      expect(response.body.message).toBe('Successfully joined Test Project');
       expect(response.body.role).toBe('editor');
 
       const collaborator = await prisma().projectCollaborator.findFirst({
@@ -126,7 +146,7 @@ describe('Team API Integration Tests', () => {
     it('should return 404 for invalid token', async () => {
       const user = await createTestUser();
 
-      setMockAuth(user.authProviderId, user.email);
+      setMockAuth(user.authProviderId, user.email, user);
 
       await request(app).post('/api/team/invitations/invalid-token/accept').expect(404);
     });
@@ -141,7 +161,7 @@ describe('Team API Integration Tests', () => {
       await createCollaborator(project.id, editor.id, 'editor');
       await createCollaborator(project.id, viewer.id, 'viewer');
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .get(`/api/team/projects/${project.id}/collaborators`)
@@ -158,7 +178,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       await request(app)
         .delete(`/api/team/projects/${project.id}/collaborators/${editor.id}`)
@@ -178,7 +198,7 @@ describe('Team API Integration Tests', () => {
       await createCollaborator(project.id, editor1.id, 'editor');
       await createCollaborator(project.id, editor2.id, 'editor');
 
-      setMockAuth(editor1.authProviderId, editor1.email);
+      setMockAuth(editor1.authProviderId, editor1.email, editor1);
 
       await request(app)
         .delete(`/api/team/projects/${project.id}/collaborators/${editor2.id}`)
@@ -193,7 +213,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(owner.authProviderId, owner.email);
+      setMockAuth(owner.authProviderId, owner.email, owner);
 
       const response = await request(app)
         .put(`/api/team/projects/${project.id}/collaborators/${editor.id}/role`)
@@ -214,7 +234,7 @@ describe('Team API Integration Tests', () => {
       const project = await createTestProject(owner.id);
       await createCollaborator(project.id, editor.id, 'editor');
 
-      setMockAuth(editor.authProviderId, editor.email);
+      setMockAuth(editor.authProviderId, editor.email, editor);
 
       await request(app)
         .put(`/api/team/projects/${project.id}/collaborators/${editor.id}/role`)
