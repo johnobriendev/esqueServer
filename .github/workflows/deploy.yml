@@ -49,14 +49,13 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
 
-      # Integration tests disabled - TODO: Fix auth mocking issues
-      # - name: Run integration tests
-      #   run: npm run test:integration
-      #   env:
-      #     ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-      #     TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-      #     AUTH0_DOMAIN: test.auth0.com
-      #     AUTH0_AUDIENCE: https://test-api.com
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          AUTH0_DOMAIN: test.auth0.com
+          AUTH0_AUDIENCE: https://test-api.com
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v3
