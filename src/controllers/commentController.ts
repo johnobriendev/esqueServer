@@ -14,6 +14,9 @@ const handlePrismaError = (error: any, res: Response) => {
   throw error;
 };
 
+const touchProjectActivity = (projectId: string) =>
+  prisma.project.update({ where: { id: projectId }, data: { lastActivityAt: new Date() } });
+
 export const getCommentsByTask: AuthenticatedController = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -109,6 +112,7 @@ export const createComment: AuthenticatedController = async (
       }
     });
 
+    await touchProjectActivity(task.projectId);
     res.status(201).json(comment);
   } catch (error) {
     const err = error as any;
@@ -171,6 +175,7 @@ export const updateComment: AuthenticatedController = async (
         }
       });
 
+      await touchProjectActivity(comment.task.projectId);
       res.status(200).json(updatedComment);
     } catch (prismaError) {
       if (handlePrismaError(prismaError, res)) return;
@@ -234,6 +239,7 @@ export const deleteComment: AuthenticatedController = async (
         where: { id: commentId }
       });
 
+      await touchProjectActivity(comment.task.projectId);
       res.status(204).send();
     } catch (prismaError) {
       if (handlePrismaError(prismaError, res)) return;

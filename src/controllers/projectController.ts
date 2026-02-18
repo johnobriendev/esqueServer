@@ -49,9 +49,9 @@ export const getAllProjects: AuthenticatedController = async (
     // Get all projects user has access to (owned + collaborated)
     const { owned, collaborated } = await getUserAccessibleProjects(user.id);
 
-    // Combine and sort by most recently updated
+    // Combine and sort by most recent task/comment activity
     const allProjects = [...owned, ...collaborated].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
     );
 
     res.status(200).json(allProjects);
@@ -221,7 +221,7 @@ export const getArchivedProjects: AuthenticatedController = async (
     const archivedCollaborated = collaborated.filter((p: any) => p.isUserArchived || p.isArchived);
 
     const allArchived = [...archivedOwned, ...archivedCollaborated].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
     );
 
     res.status(200).json(allArchived);

@@ -15,6 +15,9 @@ const handlePrismaError = (error: any, res: Response) => {
   throw error;
 };
 
+const touchProjectActivity = (projectId: string) =>
+  prisma.project.update({ where: { id: projectId }, data: { lastActivityAt: new Date() } });
+
 export const createTask: AuthenticatedController = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -65,6 +68,7 @@ export const createTask: AuthenticatedController = async (
       }
     });
 
+    await touchProjectActivity(projectId);
     res.status(201).json(task);
   } catch (error) {
     const err = error as any;
@@ -197,18 +201,19 @@ export const updateTask: AuthenticatedController = async (
     try {
       const task = await prisma.task.update({
         where: { id: taskId },
-        data: { 
-          title, 
-          description, 
-          status, 
-          priority, 
-          position, 
+        data: {
+          title,
+          description,
+          status,
+          priority,
+          position,
           customFields,
           version: { increment: 1 },
           updatedBy: user.email
         }
       });
-      
+
+      await touchProjectActivity(currentTask.projectId);
       res.status(200).json(task);
     } catch (prismaError) {
       if (handlePrismaError(prismaError, res)) return;
@@ -253,7 +258,8 @@ export const deleteTask: AuthenticatedController = async (
       await prisma.task.delete({
         where: { id: taskId }
       });
-      
+
+      await touchProjectActivity(currentTask.projectId);
       res.status(204).send();
     } catch (prismaError) {
       if (handlePrismaError(prismaError, res)) return;
@@ -320,7 +326,8 @@ export const bulkUpdateTasks: AuthenticatedController = async (
       res.status(404).json({ error: 'No tasks found or unauthorized' });
       return;
     }
-    
+
+    await touchProjectActivity(firstTask.projectId);
     res.status(200).json({
       message: `Successfully updated ${result.count} tasks`,
       count: result.count
@@ -376,6 +383,7 @@ export const reorderTasks: AuthenticatedController = async (
       })
     );
 
+    await touchProjectActivity(projectId);
     res.status(200).json(updatedTasks);
   } catch (error) {
     const err = error as any;
@@ -419,7 +427,8 @@ export const deleteMultipleTasks: AuthenticatedController = async (
       res.status(404).json({ error: 'No tasks found or unauthorized' });
       return;
     }
-    
+
+    await touchProjectActivity(projectId);
     res.status(200).json({
       message: `Successfully deleted ${result.count} tasks`,
       count: result.count
@@ -489,6 +498,7 @@ export const updateTaskPriority: AuthenticatedController = async (
         }
       });
 
+      await touchProjectActivity(currentTask.projectId);
       res.status(200).json(task);
     } catch (prismaError) {
       if (handlePrismaError(prismaError, res)) return;
@@ -558,6 +568,7 @@ export const updateTaskStatus: AuthenticatedController = async (
         }
       });
 
+      await touchProjectActivity(currentTask.projectId);
       res.status(200).json(task);
     } catch (prismaError) {
       if (handlePrismaError(prismaError, res)) return;

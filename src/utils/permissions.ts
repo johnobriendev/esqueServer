@@ -43,7 +43,7 @@ export async function getUserAccessibleProjects(userId: string, includeArchived:
         userId,
         ...(includeArchived ? {} : { isArchived: false })
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { lastActivityAt: 'desc' }
     }),
 
     // Projects user collaborates on
@@ -63,7 +63,7 @@ export async function getUserAccessibleProjects(userId: string, includeArchived:
           select: { role: true, isArchived: true }
         }
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: { lastActivityAt: 'desc' }
     })
   ]);
 
