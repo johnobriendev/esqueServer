@@ -30,7 +30,7 @@ router.use('/tasks', crossProjectTaskRoutes);
 router.use('/tasks/:taskId/comments', commentRoutes);
 router.use('/comments', commentRoutes);
 
-router.use('/unsplash', unsplashRoutes);
+router.use('/', unsplashRoutes);
 
 // Project-scoped task routes are under /projects/:projectId/tasks
 // See projectRoutes.ts for nested task routes
