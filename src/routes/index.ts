@@ -5,12 +5,12 @@ import projectRoutes from './projectRoutes';
 import teamRoutes from './teamRoutes';
 import crossProjectTaskRoutes from './crossProjectTaskRoutes';
 import commentRoutes from './commentRoutes';
-
+import unsplashRoutes from './unsplashRoutes';
 
 const router = Router();
 
 // Health check route
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.status(200).json({ status: 'OK' });
 });
 
@@ -29,6 +29,8 @@ router.use('/tasks', crossProjectTaskRoutes);
 // Standalone comment routes (also available nested under projects)
 router.use('/tasks/:taskId/comments', commentRoutes);
 router.use('/comments', commentRoutes);
+
+router.use('/unsplash', unsplashRoutes);
 
 // Project-scoped task routes are under /projects/:projectId/tasks
 // See projectRoutes.ts for nested task routes
