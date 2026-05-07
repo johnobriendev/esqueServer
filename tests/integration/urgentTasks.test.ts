@@ -30,31 +30,22 @@ jest.mock('../../src/middleware/auth', () => {
       }
       next();
     },
-    extractUserInfo: async (req: any, res: any, next: any) => {
+    extractUserInfo: async (req: any, _res: any, next: any) => {
       const mockAuth = getMockAuth();
       if (mockAuth) {
         req.user = mockAuth;
+      }
+      next();
+    },
+    attachDbUser: async (req: any, res: any, next: any) => {
+      const { getMockUser } = require('../setup/authMock');
+      const mockUser = getMockUser();
+      if (mockUser) {
+        req.dbUser = mockUser;
         next();
       } else {
         res.status(401).json({ error: 'Unauthorized' });
       }
-    },
-  };
-});
-
-
-jest.mock('../../src/utils/auth', () => {
-  const actualAuth = jest.requireActual<typeof import('../../src/utils/auth')>('../../src/utils/auth');
-  return {
-    ...actualAuth,
-    getAuthenticatedUser: async (req: any) => {
-      const { getMockUser } = require('../setup/authMock');
-      const mockUser = getMockUser();
-      console.log('[MOCK] getAuthenticatedUser called, user:', mockUser?.id);
-      if (!mockUser) {
-        throw new Error('Unauthorized');
-      }
-      return mockUser;
     },
   };
 });
