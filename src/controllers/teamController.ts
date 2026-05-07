@@ -3,7 +3,6 @@ import { Response, NextFunction } from 'express';
 import { randomBytes } from 'crypto';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-import { getAuthenticatedUser } from '../utils/auth';
 import { validateProjectAccess } from '../utils/permissions';
 
 // Helper to generate secure invitation token
@@ -25,33 +24,33 @@ export const inviteUserToProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
     const { email, role } = req.body;
-    
+
     // Validate inputs
     if (!email || !role) {
       res.status(400).json({ error: 'Email and role are required' });
       return;
     }
-    
+
     if (!['editor', 'viewer'].includes(role)) {
       res.status(400).json({ error: 'Role must be editor or viewer' });
       return;
     }
-    
+
     // Check if user is project owner (only owners can invite)
     const access = await validateProjectAccess(user.id, projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     if (access.role !== 'owner') {
       res.status(403).json({ error: 'Only project owners can invite team members' });
       return;
     }
-    
+
     // Check if email is already a collaborator
     const existingCollaborator = await prisma.projectCollaborator.findFirst({
       where: {
@@ -59,12 +58,12 @@ export const inviteUserToProject: AuthenticatedController = async (
         user: { email: email.toLowerCase() }
       }
     });
-    
+
     if (existingCollaborator) {
       res.status(400).json({ error: 'User is already a team member' });
       return;
     }
-    
+
     // Check for existing pending invitation
     const existingInvitation = await prisma.projectInvitation.findFirst({
       where: {
@@ -73,12 +72,12 @@ export const inviteUserToProject: AuthenticatedController = async (
         status: 'pending'
       }
     });
-    
+
     if (existingInvitation) {
       res.status(400).json({ error: 'User already has a pending invitation' });
       return;
     }
-    
+
     // Create invitation
     const token = generateInvitationToken();
     const invitation = await prisma.projectInvitation.create({
@@ -94,7 +93,7 @@ export const inviteUserToProject: AuthenticatedController = async (
         project: { select: { name: true } }
       }
     });
-    
+
     res.status(201).json({
       message: 'Invitation sent successfully',
       invitation: {
@@ -117,8 +116,8 @@ export const getUserInvitations: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
-    
+    const user = req.dbUser!;
+
     // Auto-cleanup expired invitations
     await prisma.projectInvitation.updateMany({
       where: {
@@ -127,7 +126,7 @@ export const getUserInvitations: AuthenticatedController = async (
       },
       data: { status: 'expired' }
     });
-    
+
     const invitations = await prisma.projectInvitation.findMany({
       where: {
         receiverEmail: user.email.toLowerCase(),
@@ -139,7 +138,7 @@ export const getUserInvitations: AuthenticatedController = async (
       },
       orderBy: { createdAt: 'desc' }
     });
-    
+
     res.status(200).json(invitations);
   } catch (error) {
     next(error);
@@ -153,9 +152,9 @@ export const acceptInvitation: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { token } = req.params;
-    
+
     const invitation = await prisma.projectInvitation.findFirst({
       where: {
         token,
@@ -166,20 +165,18 @@ export const acceptInvitation: AuthenticatedController = async (
         project: { select: { name: true } }
       }
     });
-    
+
     if (!invitation) {
       res.status(404).json({ error: 'Invitation not found or expired' });
       return;
     }
-    
+
     if (invitation.receiverEmail !== user.email.toLowerCase()) {
       res.status(403).json({ error: 'This invitation is not for you' });
       return;
     }
-    
-    // 🔧 FIX: Delete any existing invitations with 'accepted' status first
+
     await prisma.$transaction([
-      // Delete any existing accepted invitations for this project/email
       prisma.projectInvitation.deleteMany({
         where: {
           projectId: invitation.projectId,
@@ -187,7 +184,6 @@ export const acceptInvitation: AuthenticatedController = async (
           status: 'accepted'
         }
       }),
-      // Create collaborator relationship
       prisma.projectCollaborator.upsert({
         where: {
           projectId_userId: {
@@ -196,7 +192,7 @@ export const acceptInvitation: AuthenticatedController = async (
           }
         },
         update: {
-          role: invitation.role // Update role if user was previously a collaborator
+          role: invitation.role
         },
         create: {
           projectId: invitation.projectId,
@@ -204,13 +200,12 @@ export const acceptInvitation: AuthenticatedController = async (
           role: invitation.role
         }
       }),
-      // Update current invitation status
       prisma.projectInvitation.update({
         where: { id: invitation.id },
         data: { status: 'accepted' }
       })
     ]);
-    
+
     res.status(200).json({
       message: `Successfully joined ${invitation.project.name}`,
       projectId: invitation.projectId,
@@ -228,9 +223,9 @@ export const declineInvitation: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id } = req.params;
-    
+
     const invitation = await prisma.projectInvitation.findFirst({
       where: {
         id,
@@ -238,17 +233,17 @@ export const declineInvitation: AuthenticatedController = async (
         status: 'pending'
       }
     });
-    
+
     if (!invitation) {
       res.status(404).json({ error: 'Invitation not found' });
       return;
     }
-    
+
     await prisma.projectInvitation.update({
       where: { id },
       data: { status: 'declined' }
     });
-    
+
     res.status(200).json({ message: 'Invitation declined' });
   } catch (error) {
     next(error);
@@ -262,16 +257,16 @@ export const getProjectCollaborators: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
-    
+
     // Check if user has access to this project
     const access = await validateProjectAccess(user.id, projectId, 'read');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     // Get project with owner and collaborators
     const project = await prisma.project.findFirst({
       where: { id: projectId },
@@ -285,12 +280,12 @@ export const getProjectCollaborators: AuthenticatedController = async (
         }
       }
     });
-    
+
     if (!project) {
       res.status(404).json({ error: 'Project not found' });
       return;
     }
-    
+
     // Format team list
     const team = [
       {
@@ -308,7 +303,7 @@ export const getProjectCollaborators: AuthenticatedController = async (
         joinedAt: c.joinedAt
       }))
     ];
-    
+
     res.status(200).json(team);
   } catch (error) {
     next(error);
@@ -322,39 +317,39 @@ export const removeTeamMember: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId, userId: memberUserId } = req.params;
-    
+
     // Only owners can remove team members
     const access = await validateProjectAccess(user.id, projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     if (access.role !== 'owner') {
       res.status(403).json({ error: 'Only project owners can remove team members' });
       return;
     }
-    
+
     // Can't remove the owner
     if (memberUserId === user.id) {
       res.status(400).json({ error: 'Cannot remove project owner' });
       return;
     }
-    
+
     const result = await prisma.projectCollaborator.deleteMany({
       where: {
         projectId,
         userId: memberUserId
       }
     });
-    
+
     if (result.count === 0) {
       res.status(404).json({ error: 'Team member not found' });
       return;
     }
-    
+
     res.status(200).json({ message: 'Team member removed successfully' });
   } catch (error) {
     next(error);
@@ -368,7 +363,7 @@ export const updateMemberRole: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId, userId: memberUserId } = req.params;
     const { role } = req.body;
 
@@ -432,7 +427,7 @@ export const leaveProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
     const project = await prisma.project.findFirst({
@@ -466,11 +461,6 @@ export const leaveProject: AuthenticatedController = async (
 
     res.status(200).json({ message: 'Successfully left project' });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };

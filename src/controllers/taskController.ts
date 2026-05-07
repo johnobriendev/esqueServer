@@ -1,8 +1,7 @@
-// src/controllers/taskController.ts 
+// src/controllers/taskController.ts
 import { Response, NextFunction } from 'express';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-import { getAuthenticatedUser } from '../utils/auth';
 import { validateProjectAccess } from '../utils/permissions';
 
 
@@ -24,7 +23,7 @@ export const createTask: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { projectId } = req.params;
     const { id, title, description, status = 'not started', priority = 'low', position, customFields } = req.body;
 
@@ -72,10 +71,6 @@ export const createTask: AuthenticatedController = async (
     res.status(201).json(task);
   } catch (error) {
     const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     if (err.code === 'P2025') {
       res.status(404).json({ error: 'Project not found or unauthorized' });
       return;
@@ -90,28 +85,23 @@ export const getTasksByProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { projectId } = req.params;
-    
+
     // Check if user can read this project
     const access = await validateProjectAccess(user.id, projectId, 'read');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     const tasks = await prisma.task.findMany({
       where: { projectId },
       orderBy: { position: 'asc' }
     });
-    
+
     res.status(200).json(tasks);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -122,33 +112,28 @@ export const getTaskById: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
-    
+
     const task = await prisma.task.findFirst({
       where: { id: taskId },
       include: { project: true }
     });
-    
+
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
+
     // Check if user can read this project
     const access = await validateProjectAccess(user.id, task.projectId, 'read');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     res.status(200).json(task);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -159,28 +144,28 @@ export const updateTask: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
     const { title, description, status, priority, position, customFields, version } = req.body;
-    
+
     // Get current task
     const currentTask = await prisma.task.findFirst({
       where: { id: taskId },
       include: { project: true }
     });
-    
+
     if (!currentTask) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
+
     // Check if user can write to this project
     const access = await validateProjectAccess(user.id, currentTask.projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     // Simple version conflict check
     if (version && currentTask.version !== version) {
       res.status(409).json({
@@ -197,7 +182,7 @@ export const updateTask: AuthenticatedController = async (
       });
       return;
     }
-    
+
     try {
       const task = await prisma.task.update({
         where: { id: taskId },
@@ -219,11 +204,6 @@ export const updateTask: AuthenticatedController = async (
       if (handlePrismaError(prismaError, res)) return;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -234,26 +214,26 @@ export const deleteTask: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
-    
+
     // Get current task
     const currentTask = await prisma.task.findFirst({
       where: { id: taskId }
     });
-    
+
     if (!currentTask) {
       res.status(404).json({ error: 'Task not found' });
       return;
     }
-    
+
     // Check if user can write to this project
     const access = await validateProjectAccess(user.id, currentTask.projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     try {
       await prisma.task.delete({
         where: { id: taskId }
@@ -265,11 +245,6 @@ export const deleteTask: AuthenticatedController = async (
       if (handlePrismaError(prismaError, res)) return;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -280,26 +255,26 @@ export const bulkUpdateTasks: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskIds, updates } = req.body;
-    
+
     // Get project ID from first task to check permissions
     const firstTask = await prisma.task.findFirst({
       where: { id: taskIds[0] }
     });
-    
+
     if (!firstTask) {
       res.status(404).json({ error: 'Tasks not found' });
       return;
     }
-    
+
     // Check if user can write to this project
     const access = await validateProjectAccess(user.id, firstTask.projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     // Update all tasks
     const result = await prisma.task.updateMany({
       where: {
@@ -311,7 +286,7 @@ export const bulkUpdateTasks: AuthenticatedController = async (
         updatedBy: user.email
       }
     });
-    
+
     // Update versions separately (updateMany doesn't support increment)
     await prisma.$transaction(
       taskIds.map((taskId: string) =>
@@ -321,7 +296,7 @@ export const bulkUpdateTasks: AuthenticatedController = async (
         })
       )
     );
-    
+
     if (result.count === 0) {
       res.status(404).json({ error: 'No tasks found or unauthorized' });
       return;
@@ -333,11 +308,6 @@ export const bulkUpdateTasks: AuthenticatedController = async (
       count: result.count
     });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -348,7 +318,7 @@ export const reorderTasks: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { projectId } = req.params;
     const { tasks, groupBy } = req.body;
 
@@ -387,10 +357,6 @@ export const reorderTasks: AuthenticatedController = async (
     res.status(200).json(updatedTasks);
   } catch (error) {
     const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     if (err.code === 'P2025') {
       res.status(404).json({ error: 'One or more tasks not found or unauthorized' });
       return;
@@ -405,24 +371,24 @@ export const deleteMultipleTasks: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { projectId } = req.params;
     const { taskIds } = req.body;
-    
+
     // Check if user can write to this project
     const access = await validateProjectAccess(user.id, projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
-    
+
     const result = await prisma.task.deleteMany({
       where: {
         id: { in: taskIds },
         projectId
       }
     });
-    
+
     if (result.count === 0) {
       res.status(404).json({ error: 'No tasks found or unauthorized' });
       return;
@@ -434,11 +400,6 @@ export const deleteMultipleTasks: AuthenticatedController = async (
       count: result.count
     });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -449,7 +410,7 @@ export const updateTaskPriority: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
     const { priority, destinationIndex, version } = req.body;
 
@@ -504,11 +465,6 @@ export const updateTaskPriority: AuthenticatedController = async (
       if (handlePrismaError(prismaError, res)) return;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -519,7 +475,7 @@ export const updateTaskStatus: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
     const { status, destinationIndex, version } = req.body;
 
@@ -574,11 +530,6 @@ export const updateTaskStatus: AuthenticatedController = async (
       if (handlePrismaError(prismaError, res)) return;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -590,22 +541,21 @@ export const getUrgentTasks: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
 
-    // Query all urgent tasks from projects the user has access to
     const urgentTasks = await prisma.task.findMany({
       where: {
         priority: 'urgent',
         project: {
           OR: [
-            { userId: user.id }, // Projects user owns
+            { userId: user.id },
             {
               collaborators: {
                 some: {
                   userId: user.id
                 }
               }
-            } // Projects user collaborates on
+            }
           ]
         }
       },
@@ -625,11 +575,6 @@ export const getUrgentTasks: AuthenticatedController = async (
 
     res.status(200).json(urgentTasks);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };

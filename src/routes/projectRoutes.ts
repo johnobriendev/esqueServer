@@ -1,6 +1,6 @@
 // src/routes/projectRoutes.ts
 import { Router } from 'express';
-import { checkJwt, extractUserInfo } from '../middleware/auth';
+import { checkJwt, extractUserInfo, attachDbUser } from '../middleware/auth';
 import { projectRateLimit } from '../middleware/rateLimiter';
 import * as projectController from '../controllers/projectController';
 import { validateProjectData } from '../middleware/validation';
@@ -9,7 +9,7 @@ import commentRoutes from './commentRoutes';
 
 const router = Router();
 
-router.use(checkJwt, extractUserInfo);
+router.use(checkJwt, extractUserInfo, attachDbUser);
 router.use(projectRateLimit);
 
 router.get('/', projectController.getAllProjects);

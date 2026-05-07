@@ -3,6 +3,7 @@ import { Response, NextFunction } from 'express';
 import { auth } from 'express-oauth2-jwt-bearer';
 import { AUTH0_DOMAIN, AUTH0_AUDIENCE } from '../config/env';
 import { AuthenticatedRequest } from '../types/express-custom';
+import prisma from '../models/prisma';
 
 export const checkJwt = auth({
   audience: AUTH0_AUDIENCE,
@@ -30,6 +31,24 @@ export const extractUserInfo = async (
       `${auth0Id.replace('|', '_')}@example.com`;
 
     req.user = { auth0Id, email };
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const attachDbUser = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { auth0Id, email } = req.user!;
+    req.dbUser = await prisma.user.upsert({
+      where: { authProviderId: auth0Id },
+      update: {},
+      create: { authProviderId: auth0Id, email }
+    });
     next();
   } catch (error) {
     next(error);

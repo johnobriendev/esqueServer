@@ -2,7 +2,6 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-import { getAuthenticatedUser } from '../utils/auth';
 import { validateProjectAccess } from '../utils/permissions';
 
 // Helper to handle Prisma not found errors
@@ -23,10 +22,9 @@ export const getCommentsByTask: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
 
-    // Get task to verify it exists and get project access
     const task = await prisma.task.findFirst({
       where: { id: taskId }
     });
@@ -36,7 +34,6 @@ export const getCommentsByTask: AuthenticatedController = async (
       return;
     }
 
-    // Check if user can read this project
     const access = await validateProjectAccess(user.id, task.projectId, 'read');
     if (!access.success) {
       res.status(403).json({ error: access.error });
@@ -59,11 +56,6 @@ export const getCommentsByTask: AuthenticatedController = async (
 
     res.status(200).json(comments);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -74,11 +66,10 @@ export const createComment: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { taskId } = req.params;
     const { content } = req.body;
 
-    // Get task to verify it exists and get project access
     const task = await prisma.task.findFirst({
       where: { id: taskId }
     });
@@ -88,7 +79,6 @@ export const createComment: AuthenticatedController = async (
       return;
     }
 
-    // Check if user can write to this project (editors and owners only)
     const access = await validateProjectAccess(user.id, task.projectId, 'write');
     if (!access.success) {
       res.status(403).json({ error: access.error });
@@ -115,11 +105,6 @@ export const createComment: AuthenticatedController = async (
     await touchProjectActivity(task.projectId);
     res.status(201).json(comment);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -130,11 +115,10 @@ export const updateComment: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { commentId } = req.params;
     const { content } = req.body;
 
-    // Get comment with task and project info
     const comment = await prisma.taskComment.findFirst({
       where: { id: commentId },
       include: {
@@ -147,14 +131,12 @@ export const updateComment: AuthenticatedController = async (
       return;
     }
 
-    // Check if user has access to the project
     const access = await validateProjectAccess(user.id, comment.task.projectId, 'read');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
 
-    // Only the comment creator can edit their comment
     if (comment.userId !== user.id) {
       res.status(403).json({ error: 'You can only edit your own comments' });
       return;
@@ -181,11 +163,6 @@ export const updateComment: AuthenticatedController = async (
       if (handlePrismaError(prismaError, res)) return;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -196,10 +173,9 @@ export const deleteComment: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { commentId } = req.params;
 
-    // Get comment with task and project info
     const comment = await prisma.taskComment.findFirst({
       where: { id: commentId },
       include: {
@@ -216,19 +192,15 @@ export const deleteComment: AuthenticatedController = async (
       return;
     }
 
-    // Check if user has access to the project
     const access = await validateProjectAccess(user.id, comment.task.projectId, 'read');
     if (!access.success) {
       res.status(403).json({ error: access.error });
       return;
     }
 
-    // Determine if user can delete this comment
     const isOwner = comment.task.project.userId === user.id;
     const isCommentAuthor = comment.userId === user.id;
 
-    // Editors can only delete their own comments
-    // Owners can delete any comment
     if (!isOwner && !isCommentAuthor) {
       res.status(403).json({ error: 'You can only delete your own comments' });
       return;
@@ -245,11 +217,6 @@ export const deleteComment: AuthenticatedController = async (
       if (handlePrismaError(prismaError, res)) return;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };

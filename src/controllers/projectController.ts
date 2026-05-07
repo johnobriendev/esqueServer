@@ -1,8 +1,7 @@
-// src/controllers/projectController.ts 
+// src/controllers/projectController.ts
 import { Response, NextFunction } from 'express';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-import { getAuthenticatedUser } from '../utils/auth';
 import { getUserAccessibleProjects } from '../utils/permissions';
 
 
@@ -13,27 +12,22 @@ export const createProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
-    
+    const user = req.dbUser!;
+
     const { name, description } = req.body;
-    
+
     const project = await prisma.project.create({
       data: { name, description, userId: user.id }
     });
-    
+
     const response = {
       ...project,
-      userRole: 'owner',  
-      canWrite: true      
+      userRole: 'owner',
+      canWrite: true
     };
-   
+
     res.status(201).json(response);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -44,23 +38,16 @@ export const getAllProjects: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
 
-    // Get all projects user has access to (owned + collaborated)
     const { owned, collaborated } = await getUserAccessibleProjects(user.id);
 
-    // Combine and sort by most recent task/comment activity
     const allProjects = [...owned, ...collaborated].sort(
       (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
     );
 
     res.status(200).json(allProjects);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -71,10 +58,9 @@ export const getProjectById: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
-    // Check if user has access to this project
     const project = await prisma.project.findFirst({
       where: { id: projectId }
     });
@@ -84,13 +70,11 @@ export const getProjectById: AuthenticatedController = async (
       return;
     }
 
-    // Check if user is owner
     if (project.userId === user.id) {
       res.status(200).json({ ...project, userRole: 'owner', canWrite: true });
       return;
     }
 
-    // Check if user is collaborator
     const collaborator = await prisma.projectCollaborator.findFirst({
       where: { projectId, userId: user.id }
     });
@@ -106,11 +90,6 @@ export const getProjectById: AuthenticatedController = async (
 
     res.status(403).json({ error: 'Access denied' });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -121,11 +100,10 @@ export const updateProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { name, description } = req.body;
     const { id: projectId } = req.params;
 
-    // Check if user can write to this project
     const project = await prisma.project.findFirst({
       where: { id: projectId }
     });
@@ -135,7 +113,6 @@ export const updateProject: AuthenticatedController = async (
       return;
     }
 
-    // Check if user is owner
     if (project.userId === user.id) {
       const updatedProject = await prisma.project.update({
         where: { id: projectId },
@@ -145,7 +122,6 @@ export const updateProject: AuthenticatedController = async (
       return;
     }
 
-    // Check if user is editor
     const collaborator = await prisma.projectCollaborator.findFirst({
       where: { projectId, userId: user.id }
     });
@@ -161,11 +137,6 @@ export const updateProject: AuthenticatedController = async (
 
     res.status(403).json({ error: 'Access denied' });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -176,15 +147,14 @@ export const deleteProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
-    // Only owners can delete projects
     try {
       await prisma.project.delete({
         where: {
           id: projectId,
-          userId: user.id // Only owner can delete
+          userId: user.id
         }
       });
 
@@ -198,11 +168,6 @@ export const deleteProject: AuthenticatedController = async (
       throw prismaError;
     }
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -213,7 +178,7 @@ export const getArchivedProjects: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
 
     const { owned, collaborated } = await getUserAccessibleProjects(user.id, true);
 
@@ -226,11 +191,6 @@ export const getArchivedProjects: AuthenticatedController = async (
 
     res.status(200).json(allArchived);
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -241,7 +201,7 @@ export const archiveProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
     const project = await prisma.project.findFirst({
@@ -269,11 +229,6 @@ export const archiveProject: AuthenticatedController = async (
       canWrite: true
     });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -284,7 +239,7 @@ export const unarchiveProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
     const project = await prisma.project.findFirst({
@@ -312,11 +267,6 @@ export const unarchiveProject: AuthenticatedController = async (
       canWrite: true
     });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -327,7 +277,7 @@ export const hideProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
     const collaborator = await prisma.projectCollaborator.findFirst({
@@ -353,11 +303,6 @@ export const hideProject: AuthenticatedController = async (
 
     res.status(200).json({ message: 'Project hidden from your view' });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -368,7 +313,7 @@ export const unhideProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await getAuthenticatedUser(req);
+    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
     const collaborator = await prisma.projectCollaborator.findFirst({
@@ -394,11 +339,6 @@ export const unhideProject: AuthenticatedController = async (
 
     res.status(200).json({ message: 'Project restored to your view' });
   } catch (error) {
-    const err = error as any;
-    if (err.message === 'Unauthorized') {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
     next(error);
   }
 };

@@ -1,6 +1,6 @@
 // src/routes/taskRoutes.ts
 import { Router } from 'express';
-import { checkJwt, extractUserInfo } from '../middleware/auth';
+import { checkJwt, extractUserInfo, attachDbUser } from '../middleware/auth';
 import { taskRateLimit, bulkOperationRateLimit } from '../middleware/rateLimiter'; 
 import * as taskController from '../controllers/taskController';
 import {
@@ -13,7 +13,7 @@ import {
 const router = Router({ mergeParams: true });
 
 // Apply auth middleware to all routes
-router.use(checkJwt, extractUserInfo);
+router.use(checkJwt, extractUserInfo, attachDbUser);
 router.use(taskRateLimit); 
 
 // Project task routes - cast each controller function

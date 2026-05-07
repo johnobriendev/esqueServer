@@ -1,13 +1,13 @@
 // src/routes/crossProjectTaskRoutes.ts
 import { Router } from 'express';
-import { checkJwt, extractUserInfo } from '../middleware/auth';
+import { checkJwt, extractUserInfo, attachDbUser } from '../middleware/auth';
 import { taskRateLimit } from '../middleware/rateLimiter';
 import * as taskController from '../controllers/taskController';
 
 const router = Router();
 
 // Apply auth middleware to all routes
-router.use(checkJwt, extractUserInfo);
+router.use(checkJwt, extractUserInfo, attachDbUser);
 router.use(taskRateLimit);
 
 // Cross-project task queries
