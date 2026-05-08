@@ -21,14 +21,14 @@ router.get('/', requireProjectAccess('read'), taskController.getTasksByProject);
 router.post('/', requireProjectAccess('write'), validateTaskData, taskController.createTask);
 
 // Individual task routes
-router.get('/:taskId', taskController.getTaskById);
-router.patch('/:taskId', validateTaskData, taskController.updateTask);
-router.patch('/:taskId/priority', taskController.updateTaskPriority);
-router.patch('/:taskId/status', validateTaskStatusUpdate, taskController.updateTaskStatus);
-router.delete('/:taskId', taskController.deleteTask);
+router.get('/:taskId', requireProjectAccess('read'), taskController.getTaskById);
+router.patch('/:taskId', requireProjectAccess('write'), validateTaskData, taskController.updateTask);
+router.patch('/:taskId/priority', requireProjectAccess('write'), taskController.updateTaskPriority);
+router.patch('/:taskId/status', requireProjectAccess('write'), validateTaskStatusUpdate, taskController.updateTaskStatus);
+router.delete('/:taskId', requireProjectAccess('write'), taskController.deleteTask);
 
 // Bulk operations
-router.put('/bulk', validateBulkUpdateData, taskController.bulkUpdateTasks);
+router.put('/bulk', requireProjectAccess('write'), validateBulkUpdateData, taskController.bulkUpdateTasks);
 router.put('/reorder', requireProjectAccess('write'), validateReorderData, taskController.reorderTasks);
 router.delete('/', requireProjectAccess('write'), taskController.deleteMultipleTasks);
 

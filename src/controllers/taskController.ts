@@ -2,7 +2,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-import { validateProjectAccess } from '../utils/permissions';
+
 import { touchProjectActivity } from '../utils/project';
 
 export const createTask: AuthenticatedController = async (
@@ -80,23 +80,14 @@ export const getTaskById: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.dbUser!;
-    const { taskId } = req.params;
+    const { taskId, projectId } = req.params;
 
     const task = await prisma.task.findFirst({
-      where: { id: taskId },
-      include: { project: true }
+      where: { id: taskId, projectId }
     });
 
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    // Check if user can read this project
-    const access = await validateProjectAccess(user.id, task.projectId, 'read');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -113,24 +104,15 @@ export const updateTask: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { taskId } = req.params;
+    const { taskId, projectId } = req.params;
     const { title, description, status, priority, position, customFields, version } = req.body;
 
-    // Get current task
     const currentTask = await prisma.task.findFirst({
-      where: { id: taskId },
-      include: { project: true }
+      where: { id: taskId, projectId }
     });
 
     if (!currentTask) {
       res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, currentTask.projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -179,22 +161,14 @@ export const deleteTask: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { taskId } = req.params;
+    const { taskId, projectId } = req.params;
 
-    // Get current task
     const currentTask = await prisma.task.findFirst({
-      where: { id: taskId }
+      where: { id: taskId, projectId }
     });
 
     if (!currentTask) {
       res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, currentTask.projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -216,30 +190,13 @@ export const bulkUpdateTasks: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
+    const { projectId } = req.params;
     const { taskIds, updates } = req.body;
 
-    // Get project ID from first task to check permissions
-    const firstTask = await prisma.task.findFirst({
-      where: { id: taskIds[0] }
-    });
-
-    if (!firstTask) {
-      res.status(404).json({ error: 'Tasks not found' });
-      return;
-    }
-
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, firstTask.projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
-    // Update all tasks
     const result = await prisma.task.updateMany({
       where: {
         id: { in: taskIds },
-        projectId: firstTask.projectId
+        projectId
       },
       data: {
         ...updates,
@@ -262,7 +219,7 @@ export const bulkUpdateTasks: AuthenticatedController = async (
       return;
     }
 
-    await touchProjectActivity(firstTask.projectId);
+    await touchProjectActivity(projectId);
     res.status(200).json({
       message: `Successfully updated ${result.count} tasks`,
       count: result.count
@@ -352,23 +309,15 @@ export const updateTaskPriority: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { taskId } = req.params;
+    const { taskId, projectId } = req.params;
     const { priority, destinationIndex, version } = req.body;
 
-    // Get current task
     const currentTask = await prisma.task.findFirst({
-      where: { id: taskId }
+      where: { id: taskId, projectId }
     });
 
     if (!currentTask) {
       res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, currentTask.projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -413,23 +362,15 @@ export const updateTaskStatus: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { taskId } = req.params;
+    const { taskId, projectId } = req.params;
     const { status, destinationIndex, version } = req.body;
 
-    // Get current task
     const currentTask = await prisma.task.findFirst({
-      where: { id: taskId }
+      where: { id: taskId, projectId }
     });
 
     if (!currentTask) {
       res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, currentTask.projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
       return;
     }
 
