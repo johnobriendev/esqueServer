@@ -1,10 +1,6 @@
-// tests/unit/errorHandler.test.ts
 import { Request, Response, NextFunction } from 'express';
-import { errorHandler } from '../../src/middleware/errorHandler';
-
-interface AppError extends Error {
-  statusCode?: number;
-}
+import { Prisma } from '@prisma/client';
+import { errorHandler, AppError } from '../../src/middleware/errorHandler';
 
 const mockRequest = (): Partial<Request> => ({});
 
@@ -29,7 +25,7 @@ describe('Error Handler Middleware Unit Tests', () => {
   });
 
   it('should return error with status code from error object', () => {
-    const error: AppError = new Error('Test error');
+    const error: any = new Error('Test error');
     error.statusCode = 404;
 
     const req = mockRequest();
@@ -38,15 +34,11 @@ describe('Error Handler Middleware Unit Tests', () => {
     errorHandler(error, req as Request, res as Response, mockNext);
 
     expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({
-      status: 'error',
-      message: 'Test error',
-      stack: undefined,
-    });
+    expect(res.json).toHaveBeenCalledWith({ error: 'Test error' });
   });
 
   it('should default to 500 status code when not provided', () => {
-    const error: AppError = new Error('Internal error');
+    const error = new Error('Internal error');
 
     const req = mockRequest();
     const res = mockResponse();
@@ -54,17 +46,13 @@ describe('Error Handler Middleware Unit Tests', () => {
     errorHandler(error, req as Request, res as Response, mockNext);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({
-      status: 'error',
-      message: 'Internal error',
-      stack: undefined,
-    });
+    expect(res.json).toHaveBeenCalledWith({ error: 'Internal error' });
   });
 
   it('should include stack trace in development environment', () => {
     process.env.NODE_ENV = 'development';
 
-    const error: AppError = new Error('Dev error');
+    const error: any = new Error('Dev error');
     error.statusCode = 400;
 
     const req = mockRequest();
@@ -73,8 +61,7 @@ describe('Error Handler Middleware Unit Tests', () => {
     errorHandler(error, req as Request, res as Response, mockNext);
 
     expect(res.json).toHaveBeenCalledWith({
-      status: 'error',
-      message: 'Dev error',
+      error: 'Dev error',
       stack: error.stack,
     });
   });
@@ -82,7 +69,7 @@ describe('Error Handler Middleware Unit Tests', () => {
   it('should NOT include stack trace in production environment', () => {
     process.env.NODE_ENV = 'production';
 
-    const error: AppError = new Error('Prod error');
+    const error: any = new Error('Prod error');
     error.statusCode = 400;
 
     const req = mockRequest();
@@ -90,15 +77,11 @@ describe('Error Handler Middleware Unit Tests', () => {
 
     errorHandler(error, req as Request, res as Response, mockNext);
 
-    expect(res.json).toHaveBeenCalledWith({
-      status: 'error',
-      message: 'Prod error',
-      stack: undefined,
-    });
+    expect(res.json).toHaveBeenCalledWith({ error: 'Prod error' });
   });
 
   it('should handle errors without message', () => {
-    const error: AppError = new Error();
+    const error: any = new Error();
     error.statusCode = 500;
 
     const req = mockRequest();
@@ -106,11 +89,7 @@ describe('Error Handler Middleware Unit Tests', () => {
 
     errorHandler(error, req as Request, res as Response, mockNext);
 
-    expect(res.json).toHaveBeenCalledWith({
-      status: 'error',
-      message: 'Internal Server Error', // Default message when error.message is empty
-      stack: undefined,
-    });
+    expect(res.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
   });
 
   it('should handle various HTTP error codes', () => {
@@ -125,7 +104,7 @@ describe('Error Handler Middleware Unit Tests', () => {
     testCases.forEach(({ code, message }) => {
       jest.clearAllMocks();
 
-      const error: AppError = new Error(message);
+      const error: any = new Error(message);
       error.statusCode = code;
 
       const req = mockRequest();
@@ -134,11 +113,7 @@ describe('Error Handler Middleware Unit Tests', () => {
       errorHandler(error, req as Request, res as Response, mockNext);
 
       expect(res.status).toHaveBeenCalledWith(code);
-      expect(res.json).toHaveBeenCalledWith({
-        status: 'error',
-        message,
-        stack: undefined,
-      });
+      expect(res.json).toHaveBeenCalledWith({ error: message });
     });
   });
 
@@ -154,8 +129,49 @@ describe('Error Handler Middleware Unit Tests', () => {
 
     const callArg = (res.json as jest.Mock).mock.calls[0][0];
 
-    expect(callArg).toHaveProperty('status', 'error');
-    expect(callArg).toHaveProperty('message', 'Custom error');
+    expect(callArg).toHaveProperty('error', 'Custom error');
     expect(callArg).not.toHaveProperty('customField');
+  });
+
+  it('should handle AppError with correct status and message', () => {
+    const error = new AppError(422, 'Unprocessable entity');
+
+    const req = mockRequest();
+    const res = mockResponse();
+
+    errorHandler(error, req as Request, res as Response, mockNext);
+
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Unprocessable entity' });
+  });
+
+  it('should return 404 for Prisma P2025 (not found)', () => {
+    const error = new Prisma.PrismaClientKnownRequestError('Record not found', {
+      code: 'P2025',
+      clientVersion: '5.0.0',
+    });
+
+    const req = mockRequest();
+    const res = mockResponse();
+
+    errorHandler(error, req as Request, res as Response, mockNext);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Resource not found' });
+  });
+
+  it('should return 409 for Prisma P2002 (conflict)', () => {
+    const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: '5.0.0',
+    });
+
+    const req = mockRequest();
+    const res = mockResponse();
+
+    errorHandler(error, req as Request, res as Response, mockNext);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Conflict: resource already exists' });
   });
 });

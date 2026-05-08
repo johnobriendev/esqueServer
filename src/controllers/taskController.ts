@@ -5,15 +5,6 @@ import { AuthenticatedRequest, AuthenticatedController } from '../types/express-
 import { validateProjectAccess } from '../utils/permissions';
 
 
-// Helper to handle Prisma not found errors
-const handlePrismaError = (error: any, res: Response) => {
-  const err = error as any;
-  if (err.code === 'P2025') {
-    return res.status(404).json({ error: 'Resource not found or unauthorized' });
-  }
-  throw error;
-};
-
 const touchProjectActivity = (projectId: string) =>
   prisma.project.update({ where: { id: projectId }, data: { lastActivityAt: new Date() } });
 
@@ -63,11 +54,6 @@ export const createTask: AuthenticatedController = async (
     await touchProjectActivity(projectId);
     res.status(201).json(task);
   } catch (error) {
-    const err = error as any;
-    if (err.code === 'P2025') {
-      res.status(404).json({ error: 'Project not found or unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -168,26 +154,22 @@ export const updateTask: AuthenticatedController = async (
       return;
     }
 
-    try {
-      const task = await prisma.task.update({
-        where: { id: taskId },
-        data: {
-          title,
-          description,
-          status,
-          priority,
-          position,
-          customFields,
-          version: { increment: 1 },
-          updatedBy: user.email
-        }
-      });
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        title,
+        description,
+        status,
+        priority,
+        position,
+        customFields,
+        version: { increment: 1 },
+        updatedBy: user.email
+      }
+    });
 
-      await touchProjectActivity(currentTask.projectId);
-      res.status(200).json(task);
-    } catch (prismaError) {
-      if (handlePrismaError(prismaError, res)) return;
-    }
+    await touchProjectActivity(currentTask.projectId);
+    res.status(200).json(task);
   } catch (error) {
     next(error);
   }
@@ -219,16 +201,12 @@ export const deleteTask: AuthenticatedController = async (
       return;
     }
 
-    try {
-      await prisma.task.delete({
-        where: { id: taskId }
-      });
+    await prisma.task.delete({
+      where: { id: taskId }
+    });
 
-      await touchProjectActivity(currentTask.projectId);
-      res.status(204).send();
-    } catch (prismaError) {
-      if (handlePrismaError(prismaError, res)) return;
-    }
+    await touchProjectActivity(currentTask.projectId);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
@@ -334,11 +312,6 @@ export const reorderTasks: AuthenticatedController = async (
     await touchProjectActivity(projectId);
     res.status(200).json(updatedTasks);
   } catch (error) {
-    const err = error as any;
-    if (err.code === 'P2025') {
-      res.status(404).json({ error: 'One or more tasks not found or unauthorized' });
-      return;
-    }
     next(error);
   }
 };
@@ -419,22 +392,18 @@ export const updateTaskPriority: AuthenticatedController = async (
       return;
     }
 
-    try {
-      const task = await prisma.task.update({
-        where: { id: taskId },
-        data: {
-          priority,
-          ...(destinationIndex !== undefined && { position: destinationIndex }),
-          version: { increment: 1 },
-          updatedBy: user.email
-        }
-      });
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        priority,
+        ...(destinationIndex !== undefined && { position: destinationIndex }),
+        version: { increment: 1 },
+        updatedBy: user.email
+      }
+    });
 
-      await touchProjectActivity(currentTask.projectId);
-      res.status(200).json(task);
-    } catch (prismaError) {
-      if (handlePrismaError(prismaError, res)) return;
-    }
+    await touchProjectActivity(currentTask.projectId);
+    res.status(200).json(task);
   } catch (error) {
     next(error);
   }
@@ -484,22 +453,18 @@ export const updateTaskStatus: AuthenticatedController = async (
       return;
     }
 
-    try {
-      const task = await prisma.task.update({
-        where: { id: taskId },
-        data: {
-          status,
-          ...(destinationIndex !== undefined && { statusPosition: destinationIndex }),
-          version: { increment: 1 },
-          updatedBy: user.email
-        }
-      });
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        status,
+        ...(destinationIndex !== undefined && { statusPosition: destinationIndex }),
+        version: { increment: 1 },
+        updatedBy: user.email
+      }
+    });
 
-      await touchProjectActivity(currentTask.projectId);
-      res.status(200).json(task);
-    } catch (prismaError) {
-      if (handlePrismaError(prismaError, res)) return;
-    }
+    await touchProjectActivity(currentTask.projectId);
+    res.status(200).json(task);
   } catch (error) {
     next(error);
   }

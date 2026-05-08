@@ -4,15 +4,6 @@ import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
 import { validateProjectAccess } from '../utils/permissions';
 
-// Helper to handle Prisma not found errors
-const handlePrismaError = (error: any, res: Response) => {
-  const err = error as any;
-  if (err.code === 'P2025') {
-    return res.status(404).json({ error: 'Resource not found or unauthorized' });
-  }
-  throw error;
-};
-
 const touchProjectActivity = (projectId: string) =>
   prisma.project.update({ where: { id: projectId }, data: { lastActivityAt: new Date() } });
 
@@ -142,26 +133,22 @@ export const updateComment: AuthenticatedController = async (
       return;
     }
 
-    try {
-      const updatedComment = await prisma.taskComment.update({
-        where: { id: commentId },
-        data: { content },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true
-            }
+    const updatedComment = await prisma.taskComment.update({
+      where: { id: commentId },
+      data: { content },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true
           }
         }
-      });
+      }
+    });
 
-      await touchProjectActivity(comment.task.projectId);
-      res.status(200).json(updatedComment);
-    } catch (prismaError) {
-      if (handlePrismaError(prismaError, res)) return;
-    }
+    await touchProjectActivity(comment.task.projectId);
+    res.status(200).json(updatedComment);
   } catch (error) {
     next(error);
   }
@@ -206,16 +193,12 @@ export const deleteComment: AuthenticatedController = async (
       return;
     }
 
-    try {
-      await prisma.taskComment.delete({
-        where: { id: commentId }
-      });
+    await prisma.taskComment.delete({
+      where: { id: commentId }
+    });
 
-      await touchProjectActivity(comment.task.projectId);
-      res.status(204).send();
-    } catch (prismaError) {
-      if (handlePrismaError(prismaError, res)) return;
-    }
+    await touchProjectActivity(comment.task.projectId);
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

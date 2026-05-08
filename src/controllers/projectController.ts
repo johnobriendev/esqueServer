@@ -104,23 +104,14 @@ export const deleteProject: AuthenticatedController = async (
     const user = req.dbUser!;
     const { id: projectId } = req.params;
 
-    try {
-      await prisma.project.delete({
-        where: {
-          id: projectId,
-          userId: user.id
-        }
-      });
-
-      res.status(204).send();
-    } catch (prismaError) {
-      const err = prismaError as any;
-      if (err.code === 'P2025') {
-        res.status(404).json({ error: 'Project not found or unauthorized' });
-        return;
+    await prisma.project.delete({
+      where: {
+        id: projectId,
+        userId: user.id
       }
-      throw prismaError;
-    }
+    });
+
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
