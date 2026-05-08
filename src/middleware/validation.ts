@@ -1,5 +1,8 @@
-// src/middleware/validation.ts 
+// src/middleware/validation.ts
 import { Request, Response, NextFunction } from 'express';
+
+export const VALID_STATUSES = ['not started', 'in progress', 'completed'] as const;
+export const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 
 // Helper function for validation responses
 const validationError = (res: Response, message: string): void => {
@@ -39,13 +42,13 @@ export const validateTaskData = (req: Request, res: Response, next: NextFunction
     return validationError(res, 'Task description is too long (max 2000 characters)');
   }
   
-  const validStatuses = ['not started', 'in progress', 'completed'];
-  if (status && !validStatuses.includes(status)) {
+  const validStatuses = VALID_STATUSES;
+  if (status && !(VALID_STATUSES as readonly string[]).includes(status)) {
     return validationError(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
   }
-  
-  const validPriorities = ['low', 'medium', 'high', 'urgent'];
-  if (priority && !validPriorities.includes(priority)) {
+
+  const validPriorities = VALID_PRIORITIES;
+  if (priority && !(VALID_PRIORITIES as readonly string[]).includes(priority)) {
     return validationError(res, `Invalid priority. Must be one of: ${validPriorities.join(', ')}`);
   }
   
@@ -77,11 +80,11 @@ export const validateBulkUpdateData = (req: Request, res: Response, next: NextFu
   }
   
   // Reuse the same validation logic
-  if (status && !['not started', 'in progress', 'completed'].includes(status)) {
+  if (status && !(VALID_STATUSES as readonly string[]).includes(status)) {
     return validationError(res, 'Invalid status');
   }
-  
-  if (priority && !['low', 'medium', 'high', 'urgent'].includes(priority)) {
+
+  if (priority && !(VALID_PRIORITIES as readonly string[]).includes(priority)) {
     return validationError(res, 'Invalid priority');
   }
   
@@ -122,8 +125,8 @@ export const validateReorderData = (req: Request, res: Response, next: NextFunct
 export const validateTaskStatusUpdate = (req: Request, res: Response, next: NextFunction) => {
   const { status, destinationIndex, version } = req.body;
 
-  const validStatuses = ['not started', 'in progress', 'completed'];
-  if (!status || !validStatuses.includes(status)) {
+  const validStatuses = VALID_STATUSES;
+  if (!status || !(VALID_STATUSES as readonly string[]).includes(status)) {
     return validationError(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
   }
 
