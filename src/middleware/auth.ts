@@ -61,7 +61,7 @@ export const requireProjectAccess = (permission: Permission) =>
     const projectId = req.params.projectId || req.params.id;
     const access = await validateProjectAccess(req.dbUser!.id, projectId, permission);
     if (!access.success) {
-      res.status(403).json({ error: access.error });
+      res.status(access.notFound ? 404 : 403).json({ error: access.error });
       return;
     }
     req.projectAccess = { role: access.role!, canWrite: permission === 'write' || access.role! !== 'viewer' };

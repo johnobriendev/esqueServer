@@ -88,11 +88,15 @@ export async function validateProjectAccess(
   userId: string,
   projectId: string,
   requiredPermission: Permission
-): Promise<{ success: boolean; role?: ProjectRole; error?: string }> {
-  
+): Promise<{ success: boolean; role?: ProjectRole; error?: string; notFound?: boolean }> {
+
   const access = await getUserProjectAccess(userId, projectId);
-  
+
   if (!access.hasAccess) {
+    const exists = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+    if (!exists) {
+      return { success: false, notFound: true, error: 'Project not found' };
+    }
     return { success: false, error: 'Project not found or access denied' };
   }
   
