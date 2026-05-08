@@ -3,10 +3,7 @@ import { Response, NextFunction } from 'express';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
 import { validateProjectAccess } from '../utils/permissions';
-
-
-const touchProjectActivity = (projectId: string) =>
-  prisma.project.update({ where: { id: projectId }, data: { lastActivityAt: new Date() } });
+import { touchProjectActivity } from '../utils/project';
 
 export const createTask: AuthenticatedController = async (
   req: AuthenticatedRequest,
