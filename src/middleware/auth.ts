@@ -3,6 +3,7 @@ import { Response, NextFunction } from 'express';
 import { auth } from 'express-oauth2-jwt-bearer';
 import { AUTH0_DOMAIN, AUTH0_AUDIENCE } from '../config/env';
 import { AuthenticatedRequest } from '../types/express-custom';
+import { validateProjectAccess, Permission } from '../utils/permissions';
 import prisma from '../models/prisma';
 
 export const checkJwt = auth({
@@ -54,3 +55,15 @@ export const attachDbUser = async (
     next(error);
   }
 };
+
+export const requireProjectAccess = (permission: Permission) =>
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const projectId = req.params.projectId || req.params.id;
+    const access = await validateProjectAccess(req.dbUser!.id, projectId, permission);
+    if (!access.success) {
+      res.status(403).json({ error: access.error });
+      return;
+    }
+    req.projectAccess = { role: access.role!, canWrite: permission === 'write' || access.role! !== 'viewer' };
+    next();
+  };

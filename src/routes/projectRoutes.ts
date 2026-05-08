@@ -1,6 +1,6 @@
 // src/routes/projectRoutes.ts
 import { Router } from 'express';
-import { checkJwt, extractUserInfo, attachDbUser } from '../middleware/auth';
+import { checkJwt, extractUserInfo, attachDbUser, requireProjectAccess } from '../middleware/auth';
 import { projectRateLimit } from '../middleware/rateLimiter';
 import * as projectController from '../controllers/projectController';
 import { validateProjectData } from '../middleware/validation';
@@ -14,9 +14,9 @@ router.use(projectRateLimit);
 
 router.get('/', projectController.getAllProjects);
 router.get('/archived', projectController.getArchivedProjects);
-router.get('/:id', projectController.getProjectById);
+router.get('/:id', requireProjectAccess('read'), projectController.getProjectById);
 router.post('/', validateProjectData, projectController.createProject);
-router.patch('/:id', validateProjectData, projectController.updateProject);
+router.patch('/:id', requireProjectAccess('write'), validateProjectData, projectController.updateProject);
 router.patch('/:id/archive', projectController.archiveProject);
 router.patch('/:id/unarchive', projectController.unarchiveProject);
 router.patch('/:id/hide', projectController.hideProject);

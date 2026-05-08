@@ -3,7 +3,6 @@ import { Response, NextFunction } from 'express';
 import { randomBytes } from 'crypto';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-import { validateProjectAccess } from '../utils/permissions';
 
 // Helper to generate secure invitation token
 function generateInvitationToken(): string {
@@ -39,14 +38,7 @@ export const inviteUserToProject: AuthenticatedController = async (
       return;
     }
 
-    // Check if user is project owner (only owners can invite)
-    const access = await validateProjectAccess(user.id, projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
-    if (access.role !== 'owner') {
+    if (req.projectAccess!.role !== 'owner') {
       res.status(403).json({ error: 'Only project owners can invite team members' });
       return;
     }
@@ -260,13 +252,6 @@ export const getProjectCollaborators: AuthenticatedController = async (
     const user = req.dbUser!;
     const { id: projectId } = req.params;
 
-    // Check if user has access to this project
-    const access = await validateProjectAccess(user.id, projectId, 'read');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
     // Get project with owner and collaborators
     const project = await prisma.project.findFirst({
       where: { id: projectId },
@@ -320,14 +305,7 @@ export const removeTeamMember: AuthenticatedController = async (
     const user = req.dbUser!;
     const { id: projectId, userId: memberUserId } = req.params;
 
-    // Only owners can remove team members
-    const access = await validateProjectAccess(user.id, projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
-    if (access.role !== 'owner') {
+    if (req.projectAccess!.role !== 'owner') {
       res.status(403).json({ error: 'Only project owners can remove team members' });
       return;
     }
@@ -372,14 +350,7 @@ export const updateMemberRole: AuthenticatedController = async (
       return;
     }
 
-    // Only owners can update roles
-    const access = await validateProjectAccess(user.id, projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
-    if (access.role !== 'owner') {
+    if (req.projectAccess!.role !== 'owner') {
       res.status(403).json({ error: 'Only project owners can update member roles' });
       return;
     }

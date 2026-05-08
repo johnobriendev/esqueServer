@@ -1,6 +1,6 @@
 // src/routes/taskRoutes.ts
 import { Router } from 'express';
-import { checkJwt, extractUserInfo, attachDbUser } from '../middleware/auth';
+import { checkJwt, extractUserInfo, attachDbUser, requireProjectAccess } from '../middleware/auth';
 import { taskRateLimit, bulkOperationRateLimit } from '../middleware/rateLimiter'; 
 import * as taskController from '../controllers/taskController';
 import {
@@ -17,8 +17,8 @@ router.use(checkJwt, extractUserInfo, attachDbUser);
 router.use(taskRateLimit); 
 
 // Project task routes - cast each controller function
-router.get('/', taskController.getTasksByProject);
-router.post('/', validateTaskData, taskController.createTask);
+router.get('/', requireProjectAccess('read'), taskController.getTasksByProject);
+router.post('/', requireProjectAccess('write'), validateTaskData, taskController.createTask);
 
 // Individual task routes
 router.get('/:taskId', taskController.getTaskById);
@@ -29,7 +29,7 @@ router.delete('/:taskId', taskController.deleteTask);
 
 // Bulk operations
 router.put('/bulk', validateBulkUpdateData, taskController.bulkUpdateTasks);
-router.put('/reorder', validateReorderData, taskController.reorderTasks);
-router.delete('/', taskController.deleteMultipleTasks);
+router.put('/reorder', requireProjectAccess('write'), validateReorderData, taskController.reorderTasks);
+router.delete('/', requireProjectAccess('write'), taskController.deleteMultipleTasks);
 
 export default router;

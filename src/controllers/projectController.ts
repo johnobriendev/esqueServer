@@ -58,7 +58,6 @@ export const getProjectById: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.dbUser!;
     const { id: projectId } = req.params;
 
     const project = await prisma.project.findFirst({
@@ -70,25 +69,8 @@ export const getProjectById: AuthenticatedController = async (
       return;
     }
 
-    if (project.userId === user.id) {
-      res.status(200).json({ ...project, userRole: 'owner', canWrite: true });
-      return;
-    }
-
-    const collaborator = await prisma.projectCollaborator.findFirst({
-      where: { projectId, userId: user.id }
-    });
-
-    if (collaborator) {
-      res.status(200).json({
-        ...project,
-        userRole: collaborator.role,
-        canWrite: collaborator.role === 'editor'
-      });
-      return;
-    }
-
-    res.status(403).json({ error: 'Access denied' });
+    const { role, canWrite } = req.projectAccess!;
+    res.status(200).json({ ...project, userRole: role, canWrite });
   } catch (error) {
     next(error);
   }
@@ -100,42 +82,14 @@ export const updateProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.dbUser!;
     const { name, description } = req.body;
     const { id: projectId } = req.params;
 
-    const project = await prisma.project.findFirst({
-      where: { id: projectId }
+    const updatedProject = await prisma.project.update({
+      where: { id: projectId },
+      data: { name, description }
     });
-
-    if (!project) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
-    }
-
-    if (project.userId === user.id) {
-      const updatedProject = await prisma.project.update({
-        where: { id: projectId },
-        data: { name, description }
-      });
-      res.status(200).json(updatedProject);
-      return;
-    }
-
-    const collaborator = await prisma.projectCollaborator.findFirst({
-      where: { projectId, userId: user.id }
-    });
-
-    if (collaborator && collaborator.role === 'editor') {
-      const updatedProject = await prisma.project.update({
-        where: { id: projectId },
-        data: { name, description }
-      });
-      res.status(200).json(updatedProject);
-      return;
-    }
-
-    res.status(403).json({ error: 'Access denied' });
+    res.status(200).json(updatedProject);
   } catch (error) {
     next(error);
   }

@@ -27,13 +27,6 @@ export const createTask: AuthenticatedController = async (
     const { projectId } = req.params;
     const { id, title, description, status = 'not started', priority = 'low', position, customFields } = req.body;
 
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
     // Calculate position if not provided
     let finalPosition = position;
     if (finalPosition === undefined || finalPosition === null) {
@@ -85,15 +78,7 @@ export const getTasksByProject: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.dbUser!;
     const { projectId } = req.params;
-
-    // Check if user can read this project
-    const access = await validateProjectAccess(user.id, projectId, 'read');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
 
     const tasks = await prisma.task.findMany({
       where: { projectId },
@@ -322,13 +307,6 @@ export const reorderTasks: AuthenticatedController = async (
     const { projectId } = req.params;
     const { tasks, groupBy } = req.body;
 
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
-
     // Use transaction for atomic updates
     const updatedTasks = await prisma.$transaction(
       tasks.map((task: { id: string; position?: number; statusPosition?: number }) => {
@@ -374,13 +352,6 @@ export const deleteMultipleTasks: AuthenticatedController = async (
     const user = req.dbUser!;
     const { projectId } = req.params;
     const { taskIds } = req.body;
-
-    // Check if user can write to this project
-    const access = await validateProjectAccess(user.id, projectId, 'write');
-    if (!access.success) {
-      res.status(403).json({ error: access.error });
-      return;
-    }
 
     const result = await prisma.task.deleteMany({
       where: {
