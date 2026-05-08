@@ -2,7 +2,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../models/prisma';
 import { AuthenticatedRequest, AuthenticatedController } from '../types/express-custom';
-
+import { validateProjectAccess } from '../utils/permissions';
 import { touchProjectActivity } from '../utils/project';
 
 export const getCommentsByTask: AuthenticatedController = async (
@@ -11,14 +11,21 @@ export const getCommentsByTask: AuthenticatedController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { taskId, projectId } = req.params;
+    const user = req.dbUser!;
+    const { taskId } = req.params;
 
     const task = await prisma.task.findFirst({
-      where: { id: taskId, projectId }
+      where: { id: taskId }
     });
 
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    const access = await validateProjectAccess(user.id, task.projectId, 'read');
+    if (!access.success) {
+      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -49,15 +56,21 @@ export const createComment: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { taskId, projectId } = req.params;
+    const { taskId } = req.params;
     const { content } = req.body;
 
     const task = await prisma.task.findFirst({
-      where: { id: taskId, projectId }
+      where: { id: taskId }
     });
 
     if (!task) {
       res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    const access = await validateProjectAccess(user.id, task.projectId, 'write');
+    if (!access.success) {
+      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -92,15 +105,24 @@ export const updateComment: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { commentId, projectId } = req.params;
+    const { commentId } = req.params;
     const { content } = req.body;
 
     const comment = await prisma.taskComment.findFirst({
-      where: { id: commentId, task: { projectId } }
+      where: { id: commentId },
+      include: {
+        task: true
+      }
     });
 
     if (!comment) {
       res.status(404).json({ error: 'Comment not found' });
+      return;
+    }
+
+    const access = await validateProjectAccess(user.id, comment.task.projectId, 'read');
+    if (!access.success) {
+      res.status(403).json({ error: access.error });
       return;
     }
 
@@ -123,7 +145,7 @@ export const updateComment: AuthenticatedController = async (
       }
     });
 
-    await touchProjectActivity(projectId);
+    await touchProjectActivity(comment.task.projectId);
     res.status(200).json(updatedComment);
   } catch (error) {
     next(error);
@@ -137,10 +159,17 @@ export const deleteComment: AuthenticatedController = async (
 ): Promise<void> => {
   try {
     const user = req.dbUser!;
-    const { commentId, projectId } = req.params;
+    const { commentId } = req.params;
 
     const comment = await prisma.taskComment.findFirst({
-      where: { id: commentId, task: { projectId } }
+      where: { id: commentId },
+      include: {
+        task: {
+          include: {
+            project: true
+          }
+        }
+      }
     });
 
     if (!comment) {
@@ -148,7 +177,13 @@ export const deleteComment: AuthenticatedController = async (
       return;
     }
 
-    const isOwner = req.projectAccess!.role === 'owner';
+    const access = await validateProjectAccess(user.id, comment.task.projectId, 'read');
+    if (!access.success) {
+      res.status(403).json({ error: access.error });
+      return;
+    }
+
+    const isOwner = comment.task.project.userId === user.id;
     const isCommentAuthor = comment.userId === user.id;
 
     if (!isOwner && !isCommentAuthor) {
@@ -160,7 +195,7 @@ export const deleteComment: AuthenticatedController = async (
       where: { id: commentId }
     });
 
-    await touchProjectActivity(projectId);
+    await touchProjectActivity(comment.task.projectId);
     res.status(204).send();
   } catch (error) {
     next(error);
