@@ -47,6 +47,7 @@ jest.mock('../../src/middleware/auth', () => {
         res.status(401).json({ error: 'Unauthorized' });
       }
     },
+    requireProjectAccess: jest.requireActual('../../src/middleware/auth').requireProjectAccess,
   };
 });
 
